@@ -1,6 +1,6 @@
 # Dynamic Island for Windows 10/11
 
-[![Windows 10/11](https://img.shields.io/badge/Platform-Windows%2010%2F11-0A84FF?style=flat-square&logo=windows)](https://github.com/denizkaracakale2011-hue/dynamic-island-win)
+[![Windows 10/11](https://img.shields.io/badge/Platform-Windows%2010%2F11-0A84FF?style=flat-square&logo=windows)](https://github.com/TuniMani/dynamic-island-win)
 [![Tauri v2](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=flat-square&logo=tauri)](https://v2.tauri.app/)
 [![Rust + React](https://img.shields.io/badge/Stack-Rust%20%2B%20React%20%2B%20TypeScript-F97316?style=flat-square)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10B981?style=flat-square)](./LICENSE)
@@ -58,7 +58,7 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 
 ## Quick Start (Standalone `.exe`)
 
-1. Go to the [**Releases**](https://github.com/denizkaracakale2011-hue/dynamic-island-win/releases) page and download **`DynamicIsland.exe`**.
+1. Go to the [**Releases**](https://github.com/TuniMani/dynamic-island-win/releases) page and download **`DynamicIsland.exe`**.
 2. Double-click **`DynamicIsland.exe`** — it starts silently in the background with no console window and registers a **System Tray** icon.
 3. Left-click or right-click the tray icon to open **Settings**, toggle visibility, reset position, or **Quit**.
 
