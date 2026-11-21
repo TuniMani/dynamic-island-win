@@ -1,0 +1,57 @@
+[package]
+name = "dynamic-island-win"
+version = "0.1.0"
+description = "Windows 10/11 Dynamic Island Desktop Overlay"
+authors = ["Dynamic Island Team"]
+edition = "2021"
+
+[lib]
+name = "dynamic_island_win_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "rt-multi-thread", "macros"] }
+sysinfo = "0.33"
+base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+windows-core = "0.58"
+windows = { version = "0.58", features = [
+    "implement",
+    "Foundation",
+    "Foundation_Collections",
+    "Media_Control",
+    "Storage_Streams",
+    "Win32_Devices_Display",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Power",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_System_Wmi",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 16
+strip = true
