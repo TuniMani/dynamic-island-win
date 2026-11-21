@@ -54,12 +54,12 @@ export function HudOverlay({
         )}
       </button>
 
-      <div className="flex flex-1 flex-col gap-1">
-        <div className="flex items-center justify-between text-[10px] font-medium text-white/75">
-          <span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-white/75">
+          <span className="truncate">
             {isVolume ? (muted ? t.hud.muted : t.hud.volume) : t.hud.brightness}
           </span>
-          <span className="tabular-nums text-white">{effectiveLevel}%</span>
+          <span className="shrink-0 tabular-nums text-white">{effectiveLevel}%</span>
         </div>
         <div
           onClick={handleBarClick}

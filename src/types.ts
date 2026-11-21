@@ -1,4 +1,4 @@
-export type LanguageCode = "en" | "tr";
+export type LanguageCode = "en" | "tr" | "de" | "es" | "fr" | "ru" | "ja" | "pt";
 
 export type PositionPreset =
   | "top_center"

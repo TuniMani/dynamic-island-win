@@ -10,6 +10,8 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 static CREATING_SETTINGS: AtomicBool = AtomicBool::new(false);
 
+pub const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-gpu-rasterization --disable-background-timer-throttling --disable-renderer-backgrounding";
+
 struct TrayStrings {
     settings: &'static str,
     toggle_island: &'static str,
@@ -20,24 +22,71 @@ struct TrayStrings {
 }
 
 fn tray_strings(lang: &str) -> TrayStrings {
-    if lang == "tr" {
-        TrayStrings {
+    match lang {
+        "tr" => TrayStrings {
             settings: "Ayarlar",
             toggle_island: "Adayı Göster / Gizle",
             toggle_metrics: "Sistem Metrikleri Modu",
             reset_position: "Üst Ortaya Sıfırla",
             quit: "Kapat",
             settings_title: "Dynamic Island - Ayarlar",
-        }
-    } else {
-        TrayStrings {
+        },
+        "de" => TrayStrings {
+            settings: "Einstellungen",
+            toggle_island: "Insel ein-/ausblenden",
+            toggle_metrics: "Systemmetriken-Modus",
+            reset_position: "Position zurücksetzen",
+            quit: "Beenden",
+            settings_title: "Dynamic Island - Einstellungen",
+        },
+        "es" => TrayStrings {
+            settings: "Configuración",
+            toggle_island: "Mostrar / Ocultar isla",
+            toggle_metrics: "Modo métricas del sistema",
+            reset_position: "Restablecer posición",
+            quit: "Salir",
+            settings_title: "Dynamic Island - Configuración",
+        },
+        "fr" => TrayStrings {
+            settings: "Paramètres",
+            toggle_island: "Afficher / Masquer l'îlot",
+            toggle_metrics: "Mode métriques système",
+            reset_position: "Réinitialiser la position",
+            quit: "Quitter",
+            settings_title: "Dynamic Island - Paramètres",
+        },
+        "ru" => TrayStrings {
+            settings: "Настройки",
+            toggle_island: "Показать / Скрыть остров",
+            toggle_metrics: "Режим системных метрик",
+            reset_position: "Сбросить позицию",
+            quit: "Выйти",
+            settings_title: "Dynamic Island - Настройки",
+        },
+        "ja" => TrayStrings {
+            settings: "設定",
+            toggle_island: "アイランドを表示 / 非表示",
+            toggle_metrics: "システムメトリクスモード",
+            reset_position: "位置をリセット",
+            quit: "終了",
+            settings_title: "Dynamic Island - 設定",
+        },
+        "pt" => TrayStrings {
+            settings: "Configurações",
+            toggle_island: "Mostrar / Ocultar ilha",
+            toggle_metrics: "Modo métricas do sistema",
+            reset_position: "Redefinir posição",
+            quit: "Sair",
+            settings_title: "Dynamic Island - Configurações",
+        },
+        _ => TrayStrings {
             settings: "Settings",
             toggle_island: "Show / Hide Island",
             toggle_metrics: "System Metrics Mode",
             reset_position: "Reset Position",
             quit: "Quit",
             settings_title: "Dynamic Island - Settings",
-        }
+        },
     }
 }
 
@@ -132,6 +181,7 @@ pub fn open_or_focus_settings(app: &AppHandle, lang: &str) {
             .inner_size(540.0, 680.0)
             .resizable(false)
             .center()
+            .additional_browser_args(WEBVIEW2_BROWSER_ARGS)
             .background_color(Color(11, 13, 19, 255))
             .build()
             {
@@ -241,4 +291,31 @@ pub fn setup_tray(
 
     println!("[Tray] Sistem tepsisi ikonu başlatıldı.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::SUPPORTED_LANGUAGES;
+    use std::collections::HashSet;
+
+    #[test]
+    fn tray_strings_localized_for_all_eight_languages() {
+        let mut titles = HashSet::new();
+        let mut quits = HashSet::new();
+        for code in SUPPORTED_LANGUAGES {
+            let s = tray_strings(code);
+            assert!(!s.settings.is_empty());
+            assert!(!s.toggle_island.is_empty());
+            assert!(!s.toggle_metrics.is_empty());
+            assert!(!s.reset_position.is_empty());
+            assert!(!s.quit.is_empty());
+            assert!(s.settings_title.starts_with("Dynamic Island - "));
+            titles.insert(s.settings_title);
+            quits.insert(s.quit);
+        }
+        assert_eq!(titles.len(), SUPPORTED_LANGUAGES.len());
+        assert_eq!(quits.len(), SUPPORTED_LANGUAGES.len());
+        assert_eq!(tray_strings("unknown").settings_title, "Dynamic Island - Settings");
+    }
 }

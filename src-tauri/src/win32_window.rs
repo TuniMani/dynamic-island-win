@@ -12,7 +12,9 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, IsWindowEnabled, VK_LBUTTON, VK_RBUTTON,
+};
 use windows::Win32::UI::Shell::{
     DefSubclassProc, SHQueryUserNotificationState, SetWindowSubclass, QUNS_BUSY,
     QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
@@ -69,6 +71,18 @@ impl WindowMonitorFlags {
 const SUBCLASS_ID_MAIN: usize = 0x4449_0001;
 const SUBCLASS_ID_CHILD: usize = 0x4449_0002;
 
+unsafe fn is_native_dialog_hwnd(hwnd: HWND) -> bool {
+    if hwnd.0.is_null() {
+        return false;
+    }
+    let mut cls_buf = [0u16; 64];
+    let cls_len = GetClassNameW(hwnd, &mut cls_buf);
+    if cls_len <= 0 {
+        return false;
+    }
+    String::from_utf16_lossy(&cls_buf[..cls_len as usize]) == "#32770"
+}
+
 unsafe extern "system" fn main_subclass_proc(
     hwnd: HWND,
     msg: u32,
@@ -83,7 +97,14 @@ unsafe extern "system" fn main_subclass_proc(
             let state = (wparam.0 & 0xFFFF) as u32;
             if state != WA_INACTIVE {
                 let prev_hwnd = HWND(lparam.0 as *mut _);
-                if !prev_hwnd.0.is_null() && prev_hwnd != hwnd && IsWindow(prev_hwnd).as_bool() {
+                let fg_is_dialog = is_native_dialog_hwnd(GetForegroundWindow());
+                if !fg_is_dialog
+                    && !prev_hwnd.0.is_null()
+                    && prev_hwnd != hwnd
+                    && IsWindow(prev_hwnd).as_bool()
+                    && IsWindowVisible(prev_hwnd).as_bool()
+                    && IsWindowEnabled(prev_hwnd).as_bool()
+                {
                     let _ = SetForegroundWindow(prev_hwnd);
                 }
             }
@@ -186,6 +207,27 @@ pub fn apply_island_window_styles(window: &WebviewWindow) -> Result<(), String> 
     Ok(())
 }
 
+pub fn reveal_island_window(window: &WebviewWindow) -> Result<(), String> {
+    let raw_hwnd = window
+        .hwnd()
+        .map_err(|e| format!("Failed to obtain HWND: {e}"))?;
+    let hwnd = HWND(raw_hwnd.0);
+    apply_island_ex_style(hwnd, true);
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+    Ok(())
+}
+
 fn is_foreground_fullscreen(self_pid: u32, main_hwnd: HWND) -> bool {
     unsafe {
         if let Ok(state) = SHQueryUserNotificationState() {
@@ -217,7 +259,7 @@ fn is_foreground_fullscreen(self_pid: u32, main_hwnd: HWND) -> bool {
             let cls = String::from_utf16_lossy(&cls_buf[..cls_len as usize]);
             if matches!(
                 cls.as_str(),
-                "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+                "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" | "#32770"
             ) {
                 return false;
             }
@@ -322,19 +364,27 @@ pub fn start_clickthrough_monitor(
                         unsafe { (GetAsyncKeyState(VK_RBUTTON.0 as i32) as u16) & 0x8000 != 0 };
                     let any_btn_down = lbutton_down || rbutton_down;
 
+                    let fg_hwnd = unsafe { GetForegroundWindow() };
+                    let fg_is_dialog = unsafe { is_native_dialog_hwnd(fg_hwnd) };
+
                     let drop_left = rect.left as f64
                         + ((rect.right - rect.left) as f64 - 360.0 * scale) * 0.5;
                     let drop_right = drop_left + 360.0 * scale;
                     let drop_top = rect.top as f64;
                     let drop_bottom = rect.top as f64 + 90.0 * scale;
-                    let in_drop_capture = lbutton_down
+                    let in_drop_capture = !fg_is_dialog
+                        && lbutton_down
                         && cx >= drop_left
                         && cx <= drop_right
                         && cy >= drop_top
                         && cy <= drop_bottom;
 
                     if !dragging {
-                        let want_transparent = !(in_pill || in_drop_capture);
+                        let want_transparent = if fg_is_dialog && any_btn_down && !in_pill {
+                            true
+                        } else {
+                            !(in_pill || in_drop_capture)
+                        };
                         if want_transparent != is_transparent {
                             let _ = window.run_on_main_thread(move || {
                                 apply_island_ex_style(HWND(hwnd_val as *mut _), want_transparent);
@@ -345,7 +395,7 @@ pub fn start_clickthrough_monitor(
 
                     // Auto-collapse on outside click or foreground focus change
                     let expanded_now = flags.expanded.load(Ordering::Relaxed);
-                    let fg_now = unsafe { GetForegroundWindow().0 as isize };
+                    let fg_now = fg_hwnd.0 as isize;
                     if expanded_now && !was_expanded {
                         last_fg = fg_now;
                     }

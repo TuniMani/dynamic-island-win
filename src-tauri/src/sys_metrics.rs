@@ -82,15 +82,36 @@ pub fn start_system_metrics_task(
     app: AppHandle,
     shutdown: Arc<AtomicBool>,
 ) -> Arc<Mutex<SystemMetrics>> {
-    let mut sys = System::new();
-    sys.refresh_cpu_usage();
-    sys.refresh_memory();
-    let initial = collect_once(&mut sys);
-    let state = Arc::new(Mutex::new(initial.clone()));
+    let state = Arc::new(Mutex::new(SystemMetrics::default()));
     let state_task = state.clone();
 
     tauri::async_runtime::spawn(async move {
+        let mut elapsed = 0u64;
+        while elapsed < 600 {
+            if shutdown.load(Ordering::Relaxed) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            elapsed += 50;
+        }
+
+        let mut sys = System::new();
+        sys.refresh_cpu_usage();
+        sys.refresh_memory();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        if shutdown.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let initial = collect_once(&mut sys);
+        if let Ok(mut g) = state_task.lock() {
+            *g = initial.clone();
+        }
+        let _ = app.emit("system-metrics", &initial);
+
         let mut interval = tokio::time::interval(Duration::from_millis(2000));
+        // Consume the immediate first tick so we wait 2s before next sample
+        interval.tick().await;
         let mut last_emitted = initial;
         while !shutdown.load(Ordering::Relaxed) {
             interval.tick().await;

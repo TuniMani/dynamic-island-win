@@ -14,7 +14,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ACCENT_PRESETS, DEFAULT_ACCENT, getTranslations } from "../i18n";
+import {
+  ACCENT_PRESETS,
+  DEFAULT_ACCENT,
+  getTranslations,
+  LANGUAGE_OPTIONS,
+  normalizeLanguage,
+} from "../i18n";
 import {
   AnimationSpeed,
   AppSettings,
@@ -61,7 +67,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export function SettingsWindow() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const cached =
+      typeof window !== "undefined" ? window.localStorage.getItem("di_lang") : null;
+    return { ...DEFAULT_SETTINGS, language: normalizeLanguage(cached) };
+  });
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [category, setCategory] = useState<SettingsCategory>("position");
   const [savedHint, setSavedHint] = useState<string>("");
@@ -170,8 +180,8 @@ export function SettingsWindow() {
               {savedHint}
             </span>
           )}
-          <div className="flex items-center gap-1.5 rounded-xl border border-white/12 bg-[#141824] px-2 py-1">
-            <Globe className="h-3.5 w-3.5 text-sky-400" />
+          <div className="flex max-w-[140px] shrink-0 items-center gap-1.5 rounded-xl border border-white/12 bg-[#141824] px-2 py-1">
+            <Globe className="h-3.5 w-3.5 shrink-0 text-sky-400" />
             <select
               aria-label={t.settings.languageLabel}
               value={settings.language}
@@ -179,14 +189,13 @@ export function SettingsWindow() {
                 const lang = e.target.value as LanguageCode;
                 void persist({ ...settings, language: lang });
               }}
-              className="bg-transparent text-xs font-medium text-white outline-none cursor-pointer"
+              className="min-w-0 w-full cursor-pointer bg-transparent text-xs font-medium text-white outline-none"
             >
-              <option value="en" className="bg-[#141824] text-white">
-                English
-              </option>
-              <option value="tr" className="bg-[#141824] text-white">
-                Türkçe
-              </option>
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code} className="bg-[#141824] text-white">
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -207,15 +216,16 @@ export function SettingsWindow() {
             <button
               key={id}
               type="button"
+              title={label}
               onClick={() => setCategory(id)}
-              className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition ${
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-1.5 py-2 text-[11px] font-medium transition ${
                 active
                   ? "bg-sky-500 text-white shadow-sm"
                   : "bg-white/[0.04] text-white/65 hover:bg-white/[0.08] hover:text-white"
               }`}
             >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{label}</span>
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{label}</span>
             </button>
           );
         })}
@@ -226,16 +236,16 @@ export function SettingsWindow() {
         {category === "position" && (
           <>
             <section className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-white/90">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-semibold text-white/90">
                   {t.settings.position.presetsTitle}
                 </span>
                 <button
                   type="button"
                   onClick={() => void handleResetPosition()}
-                  className="flex items-center gap-1 rounded-lg border border-white/12 bg-white/6 px-2.5 py-1 text-[11px] text-white/80 hover:bg-white/12"
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-white/12 bg-white/6 px-2.5 py-1 text-[11px] text-white/80 hover:bg-white/12"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <RotateCcw className="h-3 w-3 shrink-0" />
                   <span>{t.settings.position.resetBtn}</span>
                 </button>
               </div>
@@ -279,7 +289,7 @@ export function SettingsWindow() {
 
             <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
               <label className="flex cursor-pointer items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-white/90">
                     {t.settings.position.unlockTitle}
                   </p>
@@ -293,7 +303,7 @@ export function SettingsWindow() {
                   onChange={(e) =>
                     void persist({ ...settings, unlock_position: e.target.checked })
                   }
-                  className="h-4 w-4 accent-sky-400"
+                  className="h-4 w-4 shrink-0 accent-sky-400"
                 />
               </label>
 
@@ -458,14 +468,14 @@ export function SettingsWindow() {
                       key={opt.id}
                       type="button"
                       onClick={() => void persist({ ...settings, appearance: opt.id })}
-                      className={`rounded-xl border p-2 text-left transition ${
+                      className={`min-w-0 rounded-xl border p-2 text-left transition ${
                         selected
                           ? "border-sky-400 bg-sky-500/15"
                           : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"
                       }`}
                     >
-                      <p className="text-[11px] font-medium text-white">{opt.title}</p>
-                      <p className="text-[10px] text-white/50">{opt.desc}</p>
+                      <p className="break-words text-[11px] font-medium text-white">{opt.title}</p>
+                      <p className="break-words text-[10px] text-white/50">{opt.desc}</p>
                     </button>
                   );
                 })}
@@ -535,7 +545,7 @@ export function SettingsWindow() {
                           accent_color: preset.hex,
                         })
                       }
-                      title={settings.language === "tr" ? preset.tr : preset.en}
+                      title={preset.labels[settings.language] ?? preset.labels.en}
                       className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition ${
                         selected ? "border-white scale-110" : "border-white/20 hover:scale-105"
                       }`}
@@ -579,10 +589,11 @@ export function SettingsWindow() {
                     <button
                       key={sp.id}
                       type="button"
+                      title={sp.label}
                       onClick={() =>
                         void persist({ ...settings, animation_speed: sp.id })
                       }
-                      className={`rounded-xl border py-1.5 text-[11px] font-medium transition ${
+                      className={`min-w-0 truncate rounded-xl border px-1.5 py-1.5 text-[11px] font-medium transition ${
                         settings.animation_speed === sp.id
                           ? "border-sky-400 bg-sky-500/20 text-white"
                           : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
@@ -601,7 +612,7 @@ export function SettingsWindow() {
           <>
             <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
               <label className="flex cursor-pointer items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-white/90">
                     {t.settings.behavior.autoCollapseFocus}
                   </p>
@@ -618,7 +629,7 @@ export function SettingsWindow() {
                       auto_collapse_on_focus_loss: e.target.checked,
                     })
                   }
-                  className="h-4 w-4 accent-sky-400"
+                  className="h-4 w-4 shrink-0 accent-sky-400"
                 />
               </label>
 
@@ -636,10 +647,11 @@ export function SettingsWindow() {
                     <button
                       key={opt.val}
                       type="button"
+                      title={opt.label}
                       onClick={() =>
                         void persist({ ...settings, mouse_leave_delay_ms: opt.val })
                       }
-                      className={`rounded-xl border py-1.5 text-[11px] font-medium transition ${
+                      className={`min-w-0 truncate rounded-xl border px-1 py-1.5 text-[10.5px] font-medium transition ${
                         settings.mouse_leave_delay_ms === opt.val
                           ? "border-sky-400 bg-sky-500/20 text-white"
                           : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
@@ -665,10 +677,11 @@ export function SettingsWindow() {
                     <button
                       key={opt.id}
                       type="button"
+                      title={opt.label}
                       onClick={() =>
                         void persist({ ...settings, interaction_mode: opt.id })
                       }
-                      className={`rounded-xl border py-1.5 text-[11px] font-medium transition ${
+                      className={`min-w-0 truncate rounded-xl border px-2 py-1.5 text-[11px] font-medium transition ${
                         settings.interaction_mode === opt.id
                           ? "border-sky-400 bg-sky-500/20 text-white"
                           : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
@@ -683,7 +696,7 @@ export function SettingsWindow() {
 
             <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
               <label className="flex cursor-pointer items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-white/90">
                     {t.settings.behavior.startWithWindows}
                   </p>
@@ -697,12 +710,12 @@ export function SettingsWindow() {
                   onChange={(e) =>
                     void persist({ ...settings, start_with_windows: e.target.checked })
                   }
-                  className="h-4 w-4 accent-sky-400"
+                  className="h-4 w-4 shrink-0 accent-sky-400"
                 />
               </label>
 
               <label className="flex cursor-pointer items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-white/90">
                     {t.settings.behavior.autoHideFullscreen}
                   </p>
@@ -716,7 +729,7 @@ export function SettingsWindow() {
                   onChange={(e) =>
                     void persist({ ...settings, auto_hide_fullscreen: e.target.checked })
                   }
-                  className="h-4 w-4 accent-sky-400"
+                  className="h-4 w-4 shrink-0 accent-sky-400"
                 />
               </label>
 
@@ -734,10 +747,11 @@ export function SettingsWindow() {
                     <button
                       key={opt.val}
                       type="button"
+                      title={opt.label}
                       onClick={() =>
                         void persist({ ...settings, auto_hide_idle_secs: opt.val })
                       }
-                      className={`rounded-xl border py-1.5 text-[11px] font-medium transition ${
+                      className={`min-w-0 truncate rounded-xl border px-1 py-1.5 text-[10.5px] font-medium transition ${
                         settings.auto_hide_idle_secs === opt.val
                           ? "border-sky-400 bg-sky-500/20 text-white"
                           : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
@@ -820,7 +834,7 @@ export function SettingsWindow() {
                         onChange={(e) =>
                           void persist({ ...settings, [info.key]: e.target.checked })
                         }
-                        className="ml-1 h-4 w-4 accent-sky-400"
+                        className="ml-1 h-4 w-4 shrink-0 accent-sky-400"
                       />
                     </div>
                   </div>
@@ -849,7 +863,7 @@ export function SettingsWindow() {
                   key={sub.key}
                   className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.015] px-3 py-2 hover:bg-white/[0.04]"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium text-white/90">{sub.title}</p>
                     <p className="text-[10.5px] text-white/50">{sub.desc}</p>
                   </div>
@@ -859,7 +873,7 @@ export function SettingsWindow() {
                     onChange={(e) =>
                       void persist({ ...settings, [sub.key]: e.target.checked })
                     }
-                    className="h-4 w-4 accent-sky-400"
+                    className="h-4 w-4 shrink-0 accent-sky-400"
                   />
                 </label>
               ))}

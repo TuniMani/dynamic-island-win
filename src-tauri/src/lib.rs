@@ -28,14 +28,28 @@ use sys_metrics::{start_system_metrics_task, SystemMetrics};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 use tray::{open_or_focus_settings, setup_tray, update_tray_language};
 use win32_window::{
-    apply_island_window_styles, start_clickthrough_monitor, start_free_drag_session, HitRect,
-    WindowMonitorFlags,
+    apply_island_window_styles, reveal_island_window, start_clickthrough_monitor,
+    start_free_drag_session, HitRect, WindowMonitorFlags,
 };
+
+pub(crate) fn defer_startup(shutdown: &AtomicBool, total_ms: u64) -> bool {
+    let mut elapsed = 0u64;
+    while elapsed < total_ms {
+        if shutdown.load(Ordering::Relaxed) {
+            return true;
+        }
+        let step = (total_ms - elapsed).min(50);
+        std::thread::sleep(std::time::Duration::from_millis(step));
+        elapsed += step;
+    }
+    shutdown.load(Ordering::Relaxed)
+}
 
 struct AppState {
     settings: Arc<Mutex<AppSettings>>,
     hit_rect: Arc<Mutex<HitRect>>,
     window_flags: Arc<WindowMonitorFlags>,
+    window_revealed: Arc<AtomicBool>,
     smtc: SmtcController,
     volume: Arc<Mutex<VolumeState>>,
     brightness: Arc<Mutex<BrightnessState>>,
@@ -185,6 +199,15 @@ fn set_island_expanded(state: State<'_, AppState>, expanded: bool) {
 }
 
 #[tauri::command]
+fn reveal_main_window(app: AppHandle, state: State<'_, AppState>) {
+    if !state.window_revealed.swap(true, Ordering::SeqCst) {
+        if let Some(main_win) = app.get_webview_window("main") {
+            let _ = reveal_island_window(&main_win);
+        }
+    }
+}
+
+#[tauri::command]
 fn start_island_drag(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     start_free_drag_session(app, state.settings.clone(), state.window_flags.clone())
 }
@@ -286,6 +309,7 @@ pub fn run() {
                 loaded_settings.auto_collapse_on_focus_loss,
                 loaded_settings.auto_hide_fullscreen,
             ));
+            let window_revealed = Arc::new(AtomicBool::new(false));
 
             if let Some(main_win) = handle.get_webview_window("main") {
                 if let Err(err) = apply_island_window_styles(&main_win) {
@@ -296,11 +320,36 @@ pub fn run() {
                 }
                 start_clickthrough_monitor(
                     handle.clone(),
-                    main_win,
+                    main_win.clone(),
                     hit_rect.clone(),
                     window_flags.clone(),
                     shutdown.clone(),
                 );
+
+                // Safety fallback: ensure main pill reveals even if frontend IPC is delayed
+                let revealed_fb = window_revealed.clone();
+                let shutdown_fb = shutdown.clone();
+                std::thread::Builder::new()
+                    .name("window-reveal-fallback".into())
+                    .spawn(move || {
+                        let mut elapsed = 0u64;
+                        while elapsed < 700 && !shutdown_fb.load(Ordering::Relaxed) {
+                            if revealed_fb.load(Ordering::Relaxed) {
+                                return;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                            elapsed += 50;
+                        }
+                        if !shutdown_fb.load(Ordering::Relaxed)
+                            && !revealed_fb.swap(true, Ordering::SeqCst)
+                        {
+                            let win_copy = main_win.clone();
+                            let _ = main_win.run_on_main_thread(move || {
+                                let _ = reveal_island_window(&win_copy);
+                            });
+                        }
+                    })
+                    .ok();
             }
 
             if let Err(err) = setup_tray(&handle, settings_arc.clone(), window_flags.clone()) {
@@ -332,6 +381,7 @@ pub fn run() {
                 settings: settings_arc,
                 hit_rect,
                 window_flags,
+                window_revealed,
                 smtc,
                 volume,
                 brightness,
@@ -359,6 +409,7 @@ pub fn run() {
             reset_position,
             open_settings_window,
             quit_app,
+            reveal_main_window,
             set_island_expanded,
             start_island_drag,
             update_island_hit_rect,

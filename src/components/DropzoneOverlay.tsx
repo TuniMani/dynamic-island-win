@@ -126,35 +126,38 @@ export function DropzoneOverlay({
         <button
           type="button"
           disabled={busy}
+          title={t.dropzone.copyFiles}
           onClick={() => void handleCopyFiles()}
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-white/12 bg-white/8 px-2 py-2 text-[11px] font-medium text-white transition hover:bg-white/16 disabled:opacity-50"
+          className="flex min-w-0 items-center justify-center gap-1 rounded-xl border border-white/12 bg-white/8 px-1.5 py-2 text-[10.5px] font-medium text-white transition hover:bg-white/16 disabled:opacity-50"
         >
-          <ClipboardCopy className="h-3.5 w-3.5" style={{ color: accentColor }} />
-          <span>{t.dropzone.copyFiles}</span>
+          <ClipboardCopy className="h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
+          <span className="truncate">{t.dropzone.copyFiles}</span>
         </button>
 
         <button
           type="button"
           disabled={busy}
+          title={busy ? t.dropzone.processing : t.dropzone.createZip}
           onClick={() => void handleCreateZip()}
-          className="flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-medium text-white transition disabled:opacity-50"
+          className="flex min-w-0 items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-[10.5px] font-medium text-white transition disabled:opacity-50"
           style={{
             borderColor: hexToRgba(accentColor, 0.35),
             backgroundColor: hexToRgba(accentColor, 0.22),
           }}
         >
-          <FileArchive className="h-3.5 w-3.5" style={{ color: accentColor }} />
-          <span>{busy ? t.dropzone.processing : t.dropzone.createZip}</span>
+          <FileArchive className="h-3.5 w-3.5 shrink-0" style={{ color: accentColor }} />
+          <span className="truncate">{busy ? t.dropzone.processing : t.dropzone.createZip}</span>
         </button>
 
         <button
           type="button"
           disabled={busy}
+          title={t.dropzone.copyPaths}
           onClick={() => void handleCopyPaths()}
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-white/12 bg-white/8 px-2 py-2 text-[11px] font-medium text-white transition hover:bg-white/16 disabled:opacity-50"
+          className="flex min-w-0 items-center justify-center gap-1 rounded-xl border border-white/12 bg-white/8 px-1.5 py-2 text-[10.5px] font-medium text-white transition hover:bg-white/16 disabled:opacity-50"
         >
-          <Link2 className="h-3.5 w-3.5 text-violet-300" />
-          <span>{t.dropzone.copyPaths}</span>
+          <Link2 className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+          <span className="truncate">{t.dropzone.copyPaths}</span>
         </button>
       </div>
 

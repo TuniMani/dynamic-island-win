@@ -38,15 +38,15 @@ export function TimerExpanded({
   return (
     <div className="flex h-[126px] flex-col justify-between pt-1">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <CircularProgress
             percent={pct}
             size={48}
             strokeWidth={4}
             color={timer.finished ? "#34d399" : accentColor}
           />
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-white/45">
+          <div className="min-w-0">
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-white/45">
               {timer.finished
                 ? t.timer.finished
                 : timer.running
@@ -59,7 +59,7 @@ export function TimerExpanded({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
             onClick={() => onAdjustSeconds(-60)}

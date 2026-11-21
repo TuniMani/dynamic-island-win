@@ -21,10 +21,10 @@ export function SystemExpanded({
 
   return (
     <div className="grid h-[126px] grid-cols-3 gap-2.5 pt-1">
-      <div className="flex flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-        <div className="flex items-center gap-1 text-[10px] font-medium text-white/60">
-          <Cpu className="h-3 w-3" style={{ color: accentColor }} />
-          <span>{t.system.cpu}</span>
+      <div className="flex min-w-0 flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+        <div className="flex max-w-full items-center gap-1 text-[10px] font-medium text-white/60">
+          <Cpu className="h-3 w-3 shrink-0" style={{ color: accentColor }} />
+          <span className="truncate">{t.system.cpu}</span>
         </div>
         <CircularProgress
           percent={cpuVal}
@@ -33,13 +33,15 @@ export function SystemExpanded({
           color={cpuVal > 85 ? "#fb7185" : accentColor}
           showText
         />
-        <span className="text-[10px] tabular-nums text-white/50">CPU {cpuVal}%</span>
+        <span className="max-w-full truncate text-[10px] tabular-nums text-white/50">
+          CPU {cpuVal}%
+        </span>
       </div>
 
-      <div className="flex flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-        <div className="flex items-center gap-1 text-[10px] font-medium text-white/60">
-          <MemoryStick className="h-3 w-3 text-violet-400" />
-          <span>{t.system.memory}</span>
+      <div className="flex min-w-0 flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+        <div className="flex max-w-full items-center gap-1 text-[10px] font-medium text-white/60">
+          <MemoryStick className="h-3 w-3 shrink-0 text-violet-400" />
+          <span className="truncate">{t.system.memory}</span>
         </div>
         <CircularProgress
           percent={ramVal}
@@ -48,19 +50,19 @@ export function SystemExpanded({
           color={ramVal > 85 ? "#f59e0b" : "#a78bfa"}
           showText
         />
-        <span className="text-[10px] tabular-nums text-white/50">
+        <span className="max-w-full truncate text-[10px] tabular-nums text-white/50">
           {metrics.ram_used_gb.toFixed(1)}/{metrics.ram_total_gb.toFixed(0)} GB
         </span>
       </div>
 
-      <div className="flex flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-        <div className="flex items-center gap-1 text-[10px] font-medium text-white/60">
+      <div className="flex min-w-0 flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+        <div className="flex max-w-full items-center gap-1 text-[10px] font-medium text-white/60">
           {metrics.has_battery ? (
-            <BatteryCharging className="h-3 w-3 text-emerald-400" />
+            <BatteryCharging className="h-3 w-3 shrink-0 text-emerald-400" />
           ) : (
-            <PlugZap className="h-3 w-3 text-emerald-400" />
+            <PlugZap className="h-3 w-3 shrink-0 text-emerald-400" />
           )}
-          <span>{t.system.power}</span>
+          <span className="truncate">{t.system.power}</span>
         </div>
 
         {metrics.has_battery && metrics.battery_percent !== null ? (
@@ -72,7 +74,7 @@ export function SystemExpanded({
               color={batteryVal < 20 ? "#fb7185" : "#34d399"}
               showText
             />
-            <span className="text-[10px] text-emerald-300/90">
+            <span className="max-w-full truncate text-[10px] text-emerald-300/90">
               {metrics.is_charging ? t.system.charging : t.system.battery}
             </span>
           </>
@@ -81,7 +83,9 @@ export function SystemExpanded({
             <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/12 text-emerald-300">
               <PlugZap className="h-5 w-5" />
             </div>
-            <span className="text-[10px] text-emerald-300/90">{t.system.acPower}</span>
+            <span className="max-w-full truncate text-[10px] text-emerald-300/90">
+              {t.system.acPower}
+            </span>
           </>
         )}
       </div>

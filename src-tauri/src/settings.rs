@@ -89,9 +89,11 @@ impl Default for AppSettings {
     }
 }
 
+pub const SUPPORTED_LANGUAGES: &[&str] = &["en", "tr", "de", "es", "fr", "ru", "ja", "pt"];
+
 impl AppSettings {
     pub fn sanitized(mut self) -> Self {
-        if self.language != "tr" {
+        if !SUPPORTED_LANGUAGES.contains(&self.language.as_str()) {
             self.language = "en".to_string();
         }
         self.scale = self.scale.clamp(0.75, 1.40);
@@ -335,5 +337,17 @@ mod tests {
         assert_eq!(parsed.appearance, "glass");
         assert!(parsed.auto_collapse_on_focus_loss);
         assert!(parsed.enable_media_module);
+    }
+
+    #[test]
+    fn sanitizes_all_supported_languages_and_rejects_unknown() {
+        for code in SUPPORTED_LANGUAGES {
+            let mut s = AppSettings::default();
+            s.language = (*code).to_string();
+            assert_eq!(s.sanitized().language, *code);
+        }
+        let mut unknown = AppSettings::default();
+        unknown.language = "xx".to_string();
+        assert_eq!(unknown.sanitized().language, "en");
     }
 }

@@ -546,6 +546,9 @@ pub fn start_smtc(
     thread::Builder::new()
         .name("smtc-listener".into())
         .spawn(move || {
+            if crate::defer_startup(&shutdown_smtc, 550) {
+                return;
+            }
             let com_hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
             let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
                 .and_then(|op| op.get())

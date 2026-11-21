@@ -140,6 +140,9 @@ pub fn start_volume_listener(
     thread::Builder::new()
         .name("volume-listener".into())
         .spawn(move || {
+            if crate::defer_startup(&shutdown, 500) {
+                return;
+            }
             let com_hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
 
             let Some(endpoint) = get_default_endpoint_volume() else {
@@ -283,6 +286,9 @@ pub fn start_brightness_listener(
     thread::Builder::new()
         .name("brightness-listener".into())
         .spawn(move || {
+            if crate::defer_startup(&shutdown, 950) {
+                return;
+            }
             let com_hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
             unsafe {
                 let _ = CoInitializeSecurity(

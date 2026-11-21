@@ -24,8 +24,9 @@
         "skipTaskbar": true,
         "resizable": false,
         "focus": false,
-        "visible": true,
-        "dragDropEnabled": true
+        "visible": false,
+        "dragDropEnabled": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-gpu-rasterization --disable-background-timer-throttling --disable-renderer-backgrounding"
       }
     ],
     "security": {

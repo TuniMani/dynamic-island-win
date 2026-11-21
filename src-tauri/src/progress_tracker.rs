@@ -16,11 +16,11 @@ use windows::Win32::UI::Accessibility::{
     CUIAutomation, IUIAutomation, IUIAutomationRangeValuePattern, TreeScope_Descendants,
     UIA_ItemStatusPropertyId, UIA_NamePropertyId, UIA_RangeValuePatternId,
 };
-use windows::Win32::UI::Controls::{PBM_GETPOS, PBM_GETRANGE, PBRANGE};
+use windows::Win32::UI::Controls::{PBM_GETPOS, PBM_GETRANGE};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumChildWindows, EnumWindows, FindWindowW, GetClassNameW, GetWindowTextLengthW,
-    GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, SendMessageTimeoutW,
-    SMTO_ABORTIFHUNG,
+    EnumChildWindows, EnumWindows, FindWindowExW, FindWindowW, GetClassNameW,
+    GetForegroundWindow, GetParent, GetWindow, GetWindowTextLengthW, GetWindowTextW,
+    GetWindowThreadProcessId, IsWindowVisible, SendMessageTimeoutW, GW_OWNER, SMTO_ABORTIFHUNG,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,7 +67,7 @@ pub fn parse_percentage_from_text(text: &str) -> Option<u8> {
         if b != b'%' {
             continue;
         }
-        // Turkish prefix style: "%45"
+        // Prefix style: "%45"
         if i + 1 < len && bytes[i + 1].is_ascii_digit() {
             let mut end = i + 1;
             while end < len && bytes[end].is_ascii_digit() {
@@ -81,7 +81,7 @@ pub fn parse_percentage_from_text(text: &str) -> Option<u8> {
                 }
             }
         }
-        // English suffix style: "45%"
+        // Suffix style: "45%"
         if i > 0 && bytes[i - 1].is_ascii_digit() {
             let mut start = i;
             while start > 0 && bytes[start - 1].is_ascii_digit() {
@@ -120,6 +120,57 @@ fn is_ignored_system_widget_text(lower: &str) -> bool {
     IGNORED.iter().any(|kw| lower.contains(kw))
 }
 
+fn is_browser_process(proc_lower: &str) -> bool {
+    matches!(
+        proc_lower,
+        "chrome.exe"
+            | "brave.exe"
+            | "msedge.exe"
+            | "firefox.exe"
+            | "opera.exe"
+            | "vivaldi.exe"
+            | "arc.exe"
+            | "chromium.exe"
+            | "waterfox.exe"
+            | "librewolf.exe"
+            | "floorp.exe"
+    )
+}
+
+fn is_known_transfer_process(proc_lower: &str) -> bool {
+    const TRANSFER_PROCS: &[&str] = &[
+        "7zg.exe",
+        "7zfm.exe",
+        "winrar.exe",
+        "qbittorrent.exe",
+        "idman.exe",
+        "fdm.exe",
+        "jdownloader",
+        "teracopy.exe",
+        "msiexec.exe",
+    ];
+    TRANSFER_PROCS.iter().any(|p| proc_lower.contains(p))
+}
+
+fn is_file_dialog_text(lower: &str) -> bool {
+    const DIALOG_LABELS: &[&str] = &[
+        "save as",
+        "common item dialog",
+        "#32770",
+        "farklı kaydet",
+        "speichern unter",
+        "guardar como",
+        "enregistrer sous",
+        "сохранить как",
+        "名前を付けて保存",
+        "salvar como",
+        "select folder",
+        "klasör seç",
+        "ordner auswählen",
+    ];
+    DIALOG_LABELS.iter().any(|kw| lower.contains(kw))
+}
+
 fn has_transfer_context(title_lower: &str, proc_lower: &str) -> bool {
     const TITLE_KEYWORDS: &[&str] = &[
         "kopyala",
@@ -142,20 +193,19 @@ fn has_transfer_context(title_lower: &str, proc_lower: &str) -> bool {
         "compress",
         "installing",
         "kuruluyor",
-    ];
-    const TRANSFER_PROCS: &[&str] = &[
-        "7zg.exe",
-        "7zfm.exe",
-        "winrar.exe",
-        "qbittorrent.exe",
-        "idman.exe",
-        "fdm.exe",
-        "jdownloader",
-        "teracopy.exe",
+        "kopier",
+        "herunterlad",
+        "descarg",
+        "télécharg",
+        "копир",
+        "загруз",
+        "コピー",
+        "ダウンロード",
+        "baixando",
     ];
 
     TITLE_KEYWORDS.iter().any(|kw| title_lower.contains(kw))
-        || TRANSFER_PROCS.iter().any(|p| proc_lower.contains(p))
+        || is_known_transfer_process(proc_lower)
 }
 
 fn get_window_text(hwnd: HWND) -> String {
@@ -212,22 +262,101 @@ fn get_process_name(hwnd: HWND) -> String {
     }
 }
 
+unsafe fn has_common_item_dialog_child(hwnd: HWND) -> bool {
+    let classes = [
+        w!("DUIViewWndClassName"),
+        w!("SHELLDLL_DefView"),
+        w!("ComboBoxEx32"),
+        w!("WorkerW"),
+        w!("ReBarWindow32"),
+        w!("DirectUIHWND"),
+        w!("FloatNotifySink"),
+        w!("SysTreeView32"),
+    ];
+    for cls in classes {
+        if let Ok(child) = FindWindowExW(hwnd, None, cls, None) {
+            if !child.0.is_null() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+unsafe fn is_native_file_or_modal_dialog(
+    hwnd: HWND,
+    class: &str,
+    proc_lower: &str,
+    title_lower: &str,
+) -> bool {
+    if class != "#32770" {
+        return false;
+    }
+    if is_browser_process(proc_lower)
+        || has_common_item_dialog_child(hwnd)
+        || is_file_dialog_text(title_lower)
+    {
+        return true;
+    }
+    let has_owner = GetWindow(hwnd, GW_OWNER)
+        .map(|o| !o.0.is_null())
+        .unwrap_or(false);
+    has_owner && !is_known_transfer_process(proc_lower)
+}
+
 unsafe extern "system" fn find_progress_child_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let class = get_window_class(hwnd);
     if class != "msctls_progress32" {
         return BOOL(1);
     }
 
-    let mut range = PBRANGE { iLow: 0, iHigh: 100 };
-    let mut range_res: usize = 0;
-    let ok_range = SendMessageTimeoutW(
+    // Never touch address-bar or shell-view embedded progress bars
+    let mut cur = hwnd;
+    for _ in 0..4 {
+        let Ok(parent) = GetParent(cur) else {
+            break;
+        };
+        if parent.0.is_null() {
+            break;
+        }
+        let pclass = get_window_class(parent);
+        if matches!(
+            pclass.as_str(),
+            "Address Band Root"
+                | "TravelBand"
+                | "ReBarWindow32"
+                | "WorkerW"
+                | "Breadcrumb Parent"
+                | "msctls_statusbar32"
+                | "DUIViewWndClassName"
+                | "SHELLDLL_DefView"
+        ) {
+            return BOOL(1);
+        }
+        cur = parent;
+    }
+
+    // Cross-process safe scalar PBM_* queries (LPARAM(0) only; never pass a local pointer)
+    let mut low_res: usize = 0;
+    let ok_low = SendMessageTimeoutW(
+        hwnd,
+        PBM_GETRANGE,
+        WPARAM(1),
+        LPARAM(0),
+        SMTO_ABORTIFHUNG,
+        50,
+        Some(&mut low_res),
+    );
+
+    let mut high_res: usize = 0;
+    let ok_high = SendMessageTimeoutW(
         hwnd,
         PBM_GETRANGE,
         WPARAM(0),
-        LPARAM(&mut range as *mut PBRANGE as isize),
+        LPARAM(0),
         SMTO_ABORTIFHUNG,
         50,
-        Some(&mut range_res),
+        Some(&mut high_res),
     );
 
     let mut pos_res: usize = 0;
@@ -241,18 +370,18 @@ unsafe extern "system" fn find_progress_child_cb(hwnd: HWND, lparam: LPARAM) -> 
         Some(&mut pos_res),
     );
 
-    if ok_range.0 != 0 && ok_pos.0 != 0 && range.iHigh > range.iLow {
-        let pos = pos_res as i32;
-        if pos > range.iLow && pos < range.iHigh {
-            let pct = (((pos - range.iLow) as f64 / (range.iHigh - range.iLow) as f64) * 100.0)
-                .round()
-                .clamp(1.0, 99.0) as u8;
-            let out_ptr = lparam.0 as *mut Option<u8>;
-            if !out_ptr.is_null() {
-                *out_ptr = Some(pct);
-            }
-            return BOOL(0);
+    let low = low_res as i32;
+    let high = high_res as i32;
+    let pos = pos_res as i32;
+    if ok_low.0 != 0 && ok_high.0 != 0 && ok_pos.0 != 0 && high > low && pos > low && pos < high {
+        let pct = (((pos - low) as f64 / (high - low) as f64) * 100.0)
+            .round()
+            .clamp(1.0, 99.0) as u8;
+        let out_ptr = lparam.0 as *mut Option<u8>;
+        if !out_ptr.is_null() {
+            *out_ptr = Some(pct);
         }
+        return BOOL(0);
     }
 
     BOOL(1)
@@ -284,19 +413,37 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
         collector.tasks.push(TaskProgress {
             id: format!("hwnd-{}", hwnd.0 as usize),
             title: if title_trim.is_empty() {
-                "Dosya İşlemi".to_string()
+                "File Operation".to_string()
             } else {
                 title_trim.to_string()
             },
-            subtitle: "Windows Gezgini".to_string(),
+            subtitle: "Windows Explorer".to_string(),
             percent: pct,
             source: "Explorer".to_string(),
         });
         return BOOL(1);
     }
 
-    // Classic progress dialog (#32770) or archivers containing msctls_progress32
-    if class == "#32770" || !title_trim.is_empty() {
+    let proc_name = get_process_name(hwnd);
+    let proc_lower = proc_name.to_lowercase();
+    let title_lower = title_trim.to_lowercase();
+
+    // Completely ignore native Windows Open / Save As (#32770) and browser modal dialogs
+    if is_native_file_or_modal_dialog(hwnd, &class, &proc_lower, &title_lower) {
+        return BOOL(1);
+    }
+
+    // Never enumerate children inside Windows Explorer folder windows
+    if matches!(class.as_str(), "CabinetWClass" | "ExploreWClass") {
+        return BOOL(1);
+    }
+
+    // Non-modal transfer dialogs (#32770) or archivers/installers containing msctls_progress32
+    if !is_browser_process(&proc_lower)
+        && (is_known_transfer_process(&proc_lower)
+            || has_transfer_context(&title_lower, &proc_lower)
+            || class == "#32770")
+    {
         let mut child_pct: Option<u8> = None;
         let _ = EnumChildWindows(
             hwnd,
@@ -304,16 +451,15 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
             LPARAM(&mut child_pct as *mut Option<u8> as isize),
         );
         if let Some(pct) = child_pct {
-            let proc_name = get_process_name(hwnd);
             collector.tasks.push(TaskProgress {
                 id: format!("hwnd-{}", hwnd.0 as usize),
                 title: if title_trim.is_empty() {
-                    "Arka Plan İşlemi".to_string()
+                    "Background Task".to_string()
                 } else {
                     title_trim.to_string()
                 },
                 subtitle: if proc_name.is_empty() {
-                    "Sistem İşlemi".to_string()
+                    "System Task".to_string()
                 } else {
                     proc_name
                 },
@@ -328,29 +474,24 @@ unsafe extern "system" fn enum_windows_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
         }
     }
 
-    if !title_trim.is_empty() {
-        let title_lower = title_trim.to_lowercase();
-        if !is_ignored_system_widget_text(&title_lower) {
-            let proc_name = get_process_name(hwnd);
-            let proc_lower = proc_name.to_lowercase();
-            if has_transfer_context(&title_lower, &proc_lower) {
-                if let Some(pct) = parse_percentage_from_text(title_trim) {
-                    collector.tasks.push(TaskProgress {
-                        id: format!("hwnd-{}", hwnd.0 as usize),
-                        title: title_trim.to_string(),
-                        subtitle: if proc_name.is_empty() {
-                            "Aktarım".to_string()
-                        } else {
-                            proc_name
-                        },
-                        percent: pct,
-                        source: if proc_lower == "explorer.exe" {
-                            "Explorer".to_string()
-                        } else {
-                            "App".to_string()
-                        },
-                    });
-                }
+    if !title_trim.is_empty() && !is_ignored_system_widget_text(&title_lower) {
+        if has_transfer_context(&title_lower, &proc_lower) {
+            if let Some(pct) = parse_percentage_from_text(title_trim) {
+                collector.tasks.push(TaskProgress {
+                    id: format!("hwnd-{}", hwnd.0 as usize),
+                    title: title_trim.to_string(),
+                    subtitle: if proc_name.is_empty() {
+                        "Transfer".to_string()
+                    } else {
+                        proc_name
+                    },
+                    percent: pct,
+                    source: if proc_lower == "explorer.exe" {
+                        "Explorer".to_string()
+                    } else {
+                        "App".to_string()
+                    },
+                });
             }
         }
     }
@@ -400,7 +541,7 @@ fn scan_taskbar_uia(automation: &IUIAutomation) -> Vec<TaskProgress> {
         };
 
         let combined_lower = format!("{name} {status}").to_lowercase();
-        if is_ignored_system_widget_text(&combined_lower) {
+        if is_ignored_system_widget_text(&combined_lower) || is_file_dialog_text(&combined_lower) {
             continue;
         }
 
@@ -422,7 +563,7 @@ fn scan_taskbar_uia(automation: &IUIAutomation) -> Vec<TaskProgress> {
                             let label = if !name.trim().is_empty() {
                                 name.trim().to_string()
                             } else {
-                                "Görev Çubuğu İlerlemesi".to_string()
+                                "Taskbar Progress".to_string()
                             };
                             if seen_titles.insert(label.clone()) {
                                 found.push(TaskProgress {
@@ -446,7 +587,7 @@ fn scan_taskbar_uia(automation: &IUIAutomation) -> Vec<TaskProgress> {
                 let label = if !name.trim().is_empty() {
                     name.trim().to_string()
                 } else {
-                    "Görev Çubuğu İşlemi".to_string()
+                    "Taskbar Task".to_string()
                 };
                 if seen_titles.insert(label.clone()) {
                     found.push(TaskProgress {
@@ -476,6 +617,9 @@ pub fn start_progress_tracker(
     std::thread::Builder::new()
         .name("progress-tracker".into())
         .spawn(move || {
+            if crate::defer_startup(&shutdown, 1000) {
+                return;
+            }
             let com_hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
             let automation: Option<IUIAutomation> =
                 unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok() };
@@ -501,7 +645,10 @@ pub fn start_progress_tracker(
                     let has_explorer_task = collector.tasks.iter().any(|t| t.source == "Explorer");
                     merged.extend(collector.tasks);
 
-                    if !has_explorer_task && tick % 2 == 1 {
+                    let fg = unsafe { GetForegroundWindow() };
+                    let fg_is_dialog = !fg.0.is_null() && get_window_class(fg) == "#32770";
+
+                    if !fg_is_dialog && !has_explorer_task && tick % 2 == 1 {
                         if let Some(auto) = &automation {
                             let uia_tasks = scan_taskbar_uia(auto);
                             for t in uia_tasks {
@@ -558,5 +705,22 @@ mod tests {
         assert!(has_transfer_context("dosya indiriliyor %55", "chrome.exe"));
         assert!(has_transfer_context("arsiv.zip %30", "7zfm.exe"));
         assert!(!has_transfer_context("100% organic coffee - wikipedia", "chrome.exe"));
+    }
+
+    #[test]
+    fn identifies_browser_processes_and_file_dialog_labels() {
+        assert!(is_browser_process("brave.exe"));
+        assert!(is_browser_process("chrome.exe"));
+        assert!(is_browser_process("msedge.exe"));
+        assert!(!is_browser_process("explorer.exe"));
+        assert!(is_known_transfer_process("7zfm.exe"));
+        assert!(is_known_transfer_process("msiexec.exe"));
+        assert!(!is_known_transfer_process("brave.exe"));
+        assert!(is_file_dialog_text("farklı kaydet"));
+        assert!(is_file_dialog_text("save as"));
+        assert!(is_file_dialog_text("common item dialog"));
+        assert!(is_file_dialog_text("speichern unter"));
+        assert!(is_file_dialog_text("名前を付けて保存"));
+        assert!(!is_file_dialog_text("copying 10 items - 45%"));
     }
 }

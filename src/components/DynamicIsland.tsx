@@ -12,8 +12,17 @@ import {
   Settings,
   Timer as TimerIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_ACCENT, getTranslations } from "../i18n";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { DEFAULT_ACCENT, getTranslations, normalizeLanguage } from "../i18n";
 import {
   AnimationSpeed,
   AppSettings,
@@ -29,13 +38,28 @@ import {
 import { extractAlbumAccent, hexToRgba } from "../utils/color";
 import { AudioVisualizer } from "./AudioVisualizer";
 import { CircularProgress } from "./CircularProgress";
-import { DropzoneOverlay } from "./DropzoneOverlay";
-import { HudOverlay } from "./HudOverlay";
 import { MarqueeText } from "./MarqueeText";
-import { MediaExpanded } from "./MediaExpanded";
-import { ProgressExpanded } from "./ProgressExpanded";
-import { SystemExpanded } from "./SystemExpanded";
-import { TimerExpanded } from "./TimerExpanded";
+
+const DropzoneOverlay = lazy(() =>
+  import("./DropzoneOverlay").then((m) => ({ default: m.DropzoneOverlay })),
+);
+const HudOverlay = lazy(() =>
+  import("./HudOverlay").then((m) => ({ default: m.HudOverlay })),
+);
+const MediaExpanded = lazy(() =>
+  import("./MediaExpanded").then((m) => ({ default: m.MediaExpanded })),
+);
+const ProgressExpanded = lazy(() =>
+  import("./ProgressExpanded").then((m) => ({ default: m.ProgressExpanded })),
+);
+const SystemExpanded = lazy(() =>
+  import("./SystemExpanded").then((m) => ({ default: m.SystemExpanded })),
+);
+const TimerExpanded = lazy(() =>
+  import("./TimerExpanded").then((m) => ({ default: m.TimerExpanded })),
+);
+
+const BOOT_PREFS_KEY = "di_boot_prefs";
 
 const CANVAS_W = 640;
 const CANVAS_H = 320;
@@ -157,6 +181,77 @@ function playTimerChime() {
   }
 }
 
+function loadInitialSettings(): AppSettings {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+  const cachedLang = normalizeLanguage(window.localStorage.getItem("di_lang"));
+  try {
+    const raw = window.localStorage.getItem(BOOT_PREFS_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS, language: cachedLang };
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return {
+      ...DEFAULT_SETTINGS,
+      language: normalizeLanguage(parsed.language ?? cachedLang),
+      position_preset:
+        parsed.position_preset === "top_left" ||
+        parsed.position_preset === "top_right" ||
+        parsed.position_preset === "bottom_center" ||
+        parsed.position_preset === "custom"
+          ? parsed.position_preset
+          : "top_center",
+      scale:
+        typeof parsed.scale === "number" && Number.isFinite(parsed.scale)
+          ? Math.max(0.75, Math.min(1.4, parsed.scale))
+          : DEFAULT_SETTINGS.scale,
+      border_radius_mode:
+        typeof parsed.border_radius_mode === "number" &&
+        Number.isFinite(parsed.border_radius_mode)
+          ? parsed.border_radius_mode
+          : DEFAULT_SETTINGS.border_radius_mode,
+      appearance:
+        parsed.appearance === "glass" || parsed.appearance === "custom"
+          ? parsed.appearance
+          : "pure_black",
+      background_opacity:
+        typeof parsed.background_opacity === "number" &&
+        Number.isFinite(parsed.background_opacity)
+          ? parsed.background_opacity
+          : DEFAULT_SETTINGS.background_opacity,
+      accent_mode:
+        parsed.accent_mode === "dynamic_album" || parsed.accent_mode === "custom"
+          ? parsed.accent_mode
+          : "preset",
+      accent_color:
+        typeof parsed.accent_color === "string" && parsed.accent_color.length > 0
+          ? parsed.accent_color
+          : DEFAULT_ACCENT,
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS, language: cachedLang };
+  }
+}
+
+function saveBootPrefs(s: AppSettings) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("di_lang", s.language);
+    window.localStorage.setItem(
+      BOOT_PREFS_KEY,
+      JSON.stringify({
+        language: s.language,
+        position_preset: s.position_preset,
+        scale: s.scale,
+        border_radius_mode: s.border_radius_mode,
+        appearance: s.appearance,
+        background_opacity: s.background_opacity,
+        accent_mode: s.accent_mode,
+        accent_color: s.accent_color,
+      }),
+    );
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 export function DynamicIsland() {
   const [media, setMedia] = useState<MediaState>(DEFAULT_MEDIA);
   const [volume, setVolume] = useState<VolumeState>({ level: 50, muted: false });
@@ -166,11 +261,8 @@ export function DynamicIsland() {
   });
   const [metrics, setMetrics] = useState<SystemMetrics>(DEFAULT_METRICS);
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const cachedLang =
-      typeof window !== "undefined" ? window.localStorage.getItem("di_lang") : null;
-    return cachedLang === "tr" ? { ...DEFAULT_SETTINGS, language: "tr" } : DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState<AppSettings>(loadInitialSettings);
+  const [bootSettled, setBootSettled] = useState<boolean>(false);
 
   const [albumAccent, setAlbumAccent] = useState<string | null>(null);
   const [pillImgError, setPillImgError] = useState<boolean>(false);
@@ -195,11 +287,19 @@ export function DynamicIsland() {
   const hudTimerRef = useRef<number | null>(null);
   const settingsRef = useRef<AppSettings>(settings);
 
+  // Reveal main pill window immediately once React commits frame 1
+  useLayoutEffect(() => {
+    void invoke("reveal_main_window");
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setBootSettled(true), 180);
+    return () => window.clearTimeout(id);
+  }, []);
+
   useEffect(() => {
     settingsRef.current = settings;
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("di_lang", settings.language);
-    }
+    saveBootPrefs(settings);
   }, [settings]);
 
   // Sync expanded flag to Rust Win32 monitor for auto-collapse detection
@@ -494,7 +594,7 @@ export function DynamicIsland() {
   const scale = Math.max(0.75, Math.min(1.4, settings.scale || 1.0));
 
   // Base unscaled dimensions & corner radius
-  let baseWidth = 128;
+  let baseWidth = 136;
   let baseHeight = 34;
   let baseRadius = 18;
   let viewKey = "compact-idle";
@@ -505,7 +605,7 @@ export function DynamicIsland() {
     baseRadius = 4;
     viewKey = "idle-hidden";
   } else if (droppedPaths.length > 0 && settings.enable_dropzone_module) {
-    baseWidth = 390;
+    baseWidth = 418;
     baseHeight = 116;
     baseRadius = 24;
     viewKey = "dropzone";
@@ -515,12 +615,12 @@ export function DynamicIsland() {
     baseRadius = 24;
     viewKey = "dropzone";
   } else if (expanded) {
-    baseWidth = 414;
+    baseWidth = 432;
     baseHeight = 192;
     baseRadius = 28;
     viewKey = "expanded";
   } else if (hudKind !== null) {
-    baseWidth = 258;
+    baseWidth = 272;
     baseHeight = 46;
     baseRadius = 23;
     viewKey = "hud";
@@ -535,7 +635,7 @@ export function DynamicIsland() {
     baseRadius = 18;
     viewKey = "compact-media";
   } else if (showTimerCompact) {
-    baseWidth = 164;
+    baseWidth = 176;
     baseHeight = 34;
     baseRadius = 18;
     viewKey = "compact-timer";
@@ -616,7 +716,7 @@ export function DynamicIsland() {
           borderRadius: targetRadius,
           opacity: idleHidden ? 0.35 : 1,
         }}
-        transition={spring}
+        transition={bootSettled ? spring : { duration: 0 }}
         style={{
           ...appearanceStyle,
           border: timer.finished
@@ -627,7 +727,7 @@ export function DynamicIsland() {
           boxShadow: "0 12px 32px rgba(0, 0, 0, 0.55)",
           cursor: settings.unlock_position && !expanded ? "grab" : "default",
         }}
-        className="relative overflow-hidden text-white will-change-transform"
+        className="di-pill-enter relative overflow-hidden text-white will-change-transform"
       >
         <div
           style={{
@@ -649,13 +749,15 @@ export function DynamicIsland() {
               {idleHidden ? (
                 <div className="h-full w-full" />
               ) : isDropActive ? (
-                <DropzoneOverlay
-                  dragOver={dragOver}
-                  paths={droppedPaths}
-                  lang={settings.language}
-                  accentColor={accentColor}
-                  onClear={() => setDroppedPaths([])}
-                />
+                <Suspense fallback={null}>
+                  <DropzoneOverlay
+                    dragOver={dragOver}
+                    paths={droppedPaths}
+                    lang={settings.language}
+                    accentColor={accentColor}
+                    onClear={() => setDroppedPaths([])}
+                  />
+                </Suspense>
               ) : expanded ? (
                 <div
                   className="flex h-full w-full flex-col justify-between p-3.5"
@@ -663,15 +765,16 @@ export function DynamicIsland() {
                 >
                   {/* Top Tabs & Controls */}
                   <div className="flex items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-0.5 rounded-full bg-white/[0.06] p-0.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden rounded-full bg-white/[0.06] p-0.5">
                       {enabledTabs.map((tabId) => {
                         const active = activeTab === tabId;
                         return (
                           <button
                             key={tabId}
                             type="button"
+                            title={t.tabs[tabId]}
                             onClick={() => setActiveTab(tabId)}
-                            className={`relative rounded-full px-2.5 py-1 text-[10.5px] font-medium transition ${
+                            className={`relative min-w-0 truncate whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-medium transition ${
                               active ? "text-black" : "text-white/65 hover:text-white"
                             }`}
                           >
@@ -682,11 +785,11 @@ export function DynamicIsland() {
                                 className="absolute inset-0 rounded-full bg-white"
                               />
                             )}
-                            <span className="relative z-10 flex items-center gap-1">
-                              {t.tabs[tabId]}
+                            <span className="relative z-10 flex items-center justify-center gap-1">
+                              <span className="truncate">{t.tabs[tabId]}</span>
                               {tabId === "progress" && tasks.length > 0 && (
                                 <span
-                                  className="h-1.5 w-1.5 rounded-full"
+                                  className="h-1.5 w-1.5 shrink-0 rounded-full"
                                   style={{ backgroundColor: accentColor }}
                                 />
                               )}
@@ -696,7 +799,7 @@ export function DynamicIsland() {
                       })}
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       {settings.unlock_position && (
                         <button
                           type="button"
@@ -733,76 +836,82 @@ export function DynamicIsland() {
                       <div className="flex h-[126px] items-center justify-center text-xs text-white/50">
                         {t.openSettings}
                       </div>
-                    ) : activeTab === "media" ? (
-                      <MediaExpanded
-                        media={media}
-                        enableVisualizer={settings.enable_visualizer}
-                        lang={settings.language}
-                        accentColor={accentColor}
-                      />
-                    ) : activeTab === "system" ? (
-                      <SystemExpanded
-                        metrics={metrics}
-                        lang={settings.language}
-                        accentColor={accentColor}
-                      />
-                    ) : activeTab === "progress" ? (
-                      <ProgressExpanded
-                        tasks={tasks}
-                        lang={settings.language}
-                        accentColor={accentColor}
-                      />
                     ) : (
-                      <TimerExpanded
-                        timer={timer}
-                        lang={settings.language}
-                        accentColor={accentColor}
-                        onSetPreset={(min) =>
-                          setTimer({
-                            totalSeconds: min * 60,
-                            remainingSeconds: min * 60,
-                            running: true,
-                            finished: false,
-                          })
-                        }
-                        onAdjustSeconds={(delta) =>
-                          setTimer((prev) => {
-                            const nextRem = Math.max(10, prev.remainingSeconds + delta);
-                            return {
-                              ...prev,
-                              totalSeconds: Math.max(prev.totalSeconds, nextRem),
-                              remainingSeconds: nextRem,
-                              finished: false,
-                            };
-                          })
-                        }
-                        onToggleRun={() =>
-                          setTimer((prev) => ({
-                            ...prev,
-                            running: prev.remainingSeconds > 0 ? !prev.running : false,
-                            finished: false,
-                          }))
-                        }
-                        onReset={() =>
-                          setTimer((prev) => ({
-                            ...prev,
-                            remainingSeconds: prev.totalSeconds,
-                            running: false,
-                            finished: false,
-                          }))
-                        }
-                      />
+                      <Suspense fallback={<div className="h-[126px]" />}>
+                        {activeTab === "media" ? (
+                          <MediaExpanded
+                            media={media}
+                            enableVisualizer={settings.enable_visualizer}
+                            lang={settings.language}
+                            accentColor={accentColor}
+                          />
+                        ) : activeTab === "system" ? (
+                          <SystemExpanded
+                            metrics={metrics}
+                            lang={settings.language}
+                            accentColor={accentColor}
+                          />
+                        ) : activeTab === "progress" ? (
+                          <ProgressExpanded
+                            tasks={tasks}
+                            lang={settings.language}
+                            accentColor={accentColor}
+                          />
+                        ) : (
+                          <TimerExpanded
+                            timer={timer}
+                            lang={settings.language}
+                            accentColor={accentColor}
+                            onSetPreset={(min) =>
+                              setTimer({
+                                totalSeconds: min * 60,
+                                remainingSeconds: min * 60,
+                                running: true,
+                                finished: false,
+                              })
+                            }
+                            onAdjustSeconds={(delta) =>
+                              setTimer((prev) => {
+                                const nextRem = Math.max(10, prev.remainingSeconds + delta);
+                                return {
+                                  ...prev,
+                                  totalSeconds: Math.max(prev.totalSeconds, nextRem),
+                                  remainingSeconds: nextRem,
+                                  finished: false,
+                                };
+                              })
+                            }
+                            onToggleRun={() =>
+                              setTimer((prev) => ({
+                                ...prev,
+                                running: prev.remainingSeconds > 0 ? !prev.running : false,
+                                finished: false,
+                              }))
+                            }
+                            onReset={() =>
+                              setTimer((prev) => ({
+                                ...prev,
+                                remainingSeconds: prev.totalSeconds,
+                                running: false,
+                                finished: false,
+                              }))
+                            }
+                          />
+                        )}
+                      </Suspense>
                     )}
                   </div>
                 </div>
               ) : hudKind !== null ? (
-                <HudOverlay
-                  kind={hudKind}
-                  level={hudKind === "volume" ? volume.level : brightness.level}
-                  muted={volume.muted}
-                  lang={settings.language}
-                  accentColor={accentColor}
-                />
+                <Suspense fallback={null}>
+                  <HudOverlay
+                    kind={hudKind}
+                    level={hudKind === "volume" ? volume.level : brightness.level}
+                    muted={volume.muted}
+                    lang={settings.language}
+                    accentColor={accentColor}
+                  />
+                </Suspense>
               ) : showProgressCompact ? (
                 <div className="flex h-full w-full items-center justify-between gap-2 px-3">
                   <div className="flex min-w-0 items-center gap-2">
@@ -867,18 +976,18 @@ export function DynamicIsland() {
                 </div>
               ) : showTimerCompact ? (
                 <div className="flex h-full w-full items-center justify-between gap-2 px-3">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <TimerIcon
-                      className={`h-3.5 w-3.5 ${
+                      className={`h-3.5 w-3.5 shrink-0 ${
                         timer.finished ? "text-emerald-400" : "text-amber-400"
                       }`}
                     />
-                    <span className="text-[10.5px] font-medium text-white/75">
+                    <span className="truncate text-[10.5px] font-medium text-white/75">
                       {timer.finished ? t.timer.doneShort : t.tabs.timer}
                     </span>
                   </div>
                   <span
-                    className={`text-[12px] font-semibold tabular-nums ${
+                    className={`shrink-0 text-[12px] font-semibold tabular-nums ${
                       timer.finished ? "text-emerald-300" : "text-amber-300"
                     }`}
                   >
@@ -904,20 +1013,20 @@ export function DynamicIsland() {
                   )}
                 </div>
               ) : (
-                <div className="flex h-full w-full items-center justify-between px-3.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex h-full w-full items-center justify-between gap-2 px-3.5">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span
-                      className="h-2 w-2 rounded-full"
+                      className="h-2 w-2 shrink-0 rounded-full"
                       style={{
                         backgroundColor: accentColor,
                         boxShadow: `0 0 8px ${hexToRgba(accentColor, 0.85)}`,
                       }}
                     />
-                    <span className="text-[10.5px] font-medium tracking-wide text-white/65">
+                    <span className="min-w-0 truncate text-[10.5px] font-medium tracking-wide text-white/65">
                       {t.islandLabel}
                     </span>
                   </div>
-                  <span className="text-[11px] font-semibold tabular-nums text-white/90">
+                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/90">
                     {clock}
                   </span>
                 </div>
