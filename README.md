@@ -66,7 +66,7 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 ## 🛡️ Security & VirusTotal Verification
 
 Verified release executable scan report:
-- 🔗 [View VirusTotal Report](https://www.virustotal.com/gui/file/1a89f6226cee2ef70be44f462787d8356ca236e89483bdda49fa0448678cbb92?nocache=1)
+- 🔗 [View VirusTotal Report](https://www.virustotal.com/gui/file/f7afed9e007ce9e85073d7a7b7683f805571e7ee26b06707ea3a8c1a4a5d5511?nocache=1)
 
 ![VirusTotal Scan Result](assets/virustotal.png)
 
