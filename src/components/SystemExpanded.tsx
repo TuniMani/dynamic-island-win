@@ -20,7 +20,7 @@ export function SystemExpanded({
   const batteryVal = metrics.battery_percent ?? 100;
 
   return (
-    <div className="grid h-[126px] grid-cols-3 gap-2.5 pt-1">
+    <div className="grid h-[146px] grid-cols-3 gap-2.5 pt-1">
       <div className="flex min-w-0 flex-col items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
         <div className="flex max-w-full items-center gap-1 text-[10px] font-medium text-white/60">
           <Cpu className="h-3 w-3 shrink-0" style={{ color: accentColor }} />

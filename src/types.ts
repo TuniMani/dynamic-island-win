@@ -11,7 +11,22 @@ export type AppearanceMode = "pure_black" | "glass" | "custom";
 export type AccentMode = "preset" | "dynamic_album" | "custom";
 export type InteractionMode = "hover" | "click";
 export type AnimationSpeed = "smooth" | "balanced" | "snappy";
-export type ExpandedTab = "media" | "system" | "progress" | "timer";
+export type ExpandedTab = "media" | "volume" | "system" | "progress" | "timer";
+
+export interface VolumeState {
+  level: number;
+  muted: boolean;
+}
+
+export interface AudioAppSession {
+  pid: number;
+  name: string;
+  process_name: string;
+  volume: number;
+  muted: boolean;
+  peak: number;
+  active: boolean;
+}
 
 export interface MediaSessionSummary {
   id: string;
@@ -37,11 +52,6 @@ export interface MediaState {
   start_time_secs: number;
   updated_at_ms: number;
   sessions: MediaSessionSummary[];
-}
-
-export interface VolumeState {
-  level: number;
-  muted: boolean;
 }
 
 export interface BrightnessState {
@@ -93,6 +103,7 @@ export interface AppSettings {
   hud_duration_ms: number;
   enable_visualizer: boolean;
   enable_media_module: boolean;
+  enable_volume_module: boolean;
   enable_system_module: boolean;
   enable_progress_tracker: boolean;
   enable_timer_module: boolean;

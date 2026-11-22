@@ -1,16 +1,33 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeftRight, Disc3, Pause, Play, SkipBack, SkipForward } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowLeftRight,
+  Disc3,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_ACCENT, getTranslations } from "../i18n";
-import { LanguageCode, MediaState } from "../types";
+import { AudioAppSession, LanguageCode, MediaState, VolumeState } from "../types";
 import { hexToRgba } from "../utils/color";
 import { AudioVisualizer } from "./AudioVisualizer";
+import { VolumeSlider } from "./VolumeSlider";
 
 interface MediaExpandedProps {
   media: MediaState;
   enableVisualizer: boolean;
   lang: LanguageCode;
   accentColor?: string;
+  volume: VolumeState;
+  sessions: AudioAppSession[];
+  onMasterVolumeChange: (level: number) => void;
+  onMasterMuteToggle: () => void;
+  onAppVolumeChange: (pid: number, level: number) => void;
+  onAppMuteToggle: (pid: number) => void;
+  onAppDragStateChange: (pid: number | null) => void;
 }
 
 function formatSecs(total: number): string {
@@ -45,15 +62,131 @@ function friendlySourceName(appId: string, fallback: string): string {
   return clean.slice(0, 18);
 }
 
+const KNOWN_APP_FAMILIES = [
+  "spotify",
+  "brave",
+  "chrome",
+  "msedge",
+  "edge",
+  "firefox",
+  "opera",
+  "vivaldi",
+  "vlc",
+  "apple",
+  "itunes",
+  "tidal",
+  "musicbee",
+  "foobar",
+  "potplayer",
+];
+
+function findMatchingAudioSession(
+  sessions: AudioAppSession[],
+  appId: string,
+): AudioAppSession | null {
+  if (!appId || sessions.length === 0) return null;
+  const appLower = appId.toLowerCase();
+  const aumIdStem = appLower.split("!").pop()?.replace(/\.exe$/i, "") ?? appLower;
+
+  let best: AudioAppSession | null = null;
+  let bestScore = 0;
+
+  for (const s of sessions) {
+    const procLower = s.process_name.toLowerCase();
+    const stemLower = procLower.replace(/\.exe$/i, "");
+    const nameLower = s.name.toLowerCase();
+    let score = 0;
+
+    if (procLower === appLower || stemLower === aumIdStem || nameLower === aumIdStem) {
+      score = 100;
+    } else {
+      for (const fam of KNOWN_APP_FAMILIES) {
+        const appHas = appLower.includes(fam);
+        const sessionHas =
+          procLower.includes(fam) || nameLower.includes(fam);
+        if (appHas && sessionHas) {
+          score = Math.max(score, 75);
+        }
+      }
+      if (
+        score === 0 &&
+        stemLower.length >= 3 &&
+        (appLower.includes(stemLower) || stemLower.includes(aumIdStem))
+      ) {
+        score = 50;
+      }
+    }
+
+    if (score === 0) continue;
+    if (s.active) score += 20;
+    score += Math.min(10, s.peak * 10);
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  }
+
+  return best;
+}
+
 export function MediaExpanded({
   media,
   enableVisualizer,
   lang,
   accentColor = DEFAULT_ACCENT,
+  volume,
+  sessions,
+  onMasterVolumeChange,
+  onMasterMuteToggle,
+  onAppVolumeChange,
+  onAppMuteToggle,
+  onAppDragStateChange,
 }: MediaExpandedProps) {
   const t = getTranslations(lang);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [imgError, setImgError] = useState<boolean>(false);
+  const volumeRowRef = useRef<HTMLDivElement | null>(null);
+
+  const matchedSession = findMatchingAudioSession(sessions, media.app_id);
+  const effectiveVolume = matchedSession ? matchedSession.volume : volume.level;
+  const effectiveMuted = matchedSession ? matchedSession.muted : volume.muted;
+  const displayVol = effectiveMuted ? 0 : effectiveVolume;
+  const targetLabel = matchedSession ? matchedSession.name : t.volume.masterVolume;
+
+  const wheelStateRef = useRef({
+    effectiveVolume,
+    matchedPid: matchedSession?.pid ?? null,
+    onMasterVolumeChange,
+    onAppVolumeChange,
+  });
+  useEffect(() => {
+    wheelStateRef.current = {
+      effectiveVolume,
+      matchedPid: matchedSession?.pid ?? null,
+      onMasterVolumeChange,
+      onAppVolumeChange,
+    };
+  }, [effectiveVolume, matchedSession?.pid, onMasterVolumeChange, onAppVolumeChange]);
+
+  useEffect(() => {
+    const el = volumeRowRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const { effectiveVolume: cur, matchedPid, onMasterVolumeChange: setM, onAppVolumeChange: setA } =
+        wheelStateRef.current;
+      const next = Math.max(0, Math.min(100, Math.round(cur + (e.deltaY < 0 ? 2 : -2))));
+      if (matchedPid !== null) {
+        setA(matchedPid, next);
+      } else {
+        setM(next);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [media.has_media]);
 
   useEffect(() => {
     setImgError(false);
@@ -75,7 +208,7 @@ export function MediaExpanded({
 
   if (!media.has_media) {
     return (
-      <div className="flex h-[126px] flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-[146px] flex-col items-center justify-center gap-2 text-center">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/8 text-white/45">
           <Disc3 className="h-5 w-5" />
         </div>
@@ -115,9 +248,9 @@ export function MediaExpanded({
     : null;
 
   return (
-    <div className="flex flex-col gap-2.5 pt-0.5">
-      <div className="flex items-center gap-3">
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/12 bg-white/6 shadow-lg">
+    <div className="flex h-[146px] flex-col justify-between pt-0.5">
+      <div className="flex items-center gap-2.5">
+        <div className="relative h-[50px] w-[50px] shrink-0 overflow-hidden rounded-2xl border border-white/12 bg-white/6 shadow-lg">
           {media.thumbnail && !imgError ? (
             <img
               src={media.thumbnail}
@@ -133,7 +266,7 @@ export function MediaExpanded({
                 background: `linear-gradient(135deg, ${hexToRgba(accentColor, 0.35)}, rgba(255,255,255,0.08))`,
               }}
             >
-              <Disc3 className="h-7 w-7" />
+              <Disc3 className="h-6 w-6" />
             </div>
           )}
         </div>
@@ -171,10 +304,10 @@ export function MediaExpanded({
               </button>
             )}
           </div>
-          <p className="mt-0.5 truncate text-[13px] font-semibold text-white">
+          <p className="mt-0.5 truncate text-[12.5px] font-semibold leading-tight text-white">
             {media.title || t.media.unknownTrack}
           </p>
-          <p className="truncate text-[11px] text-white/60">
+          <p className="truncate text-[10.5px] leading-tight text-white/60">
             {media.artist || media.album || t.media.unknownArtist}
           </p>
         </div>
@@ -186,7 +319,7 @@ export function MediaExpanded({
         )}
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <div
           onClick={handleSeekClick}
           className="group relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/14"
@@ -200,7 +333,7 @@ export function MediaExpanded({
             }}
           />
         </div>
-        <div className="flex justify-between text-[10px] tabular-nums text-white/45">
+        <div className="flex justify-between text-[9.5px] tabular-nums text-white/45">
           <span>{formatSecs(currentPos)}</span>
           <span>{media.duration_secs > 0 ? formatSecs(media.duration_secs) : "--:--"}</span>
         </div>
@@ -210,33 +343,90 @@ export function MediaExpanded({
         <button
           type="button"
           onClick={() => void invoke("media_previous")}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
           title={t.media.prevTitle}
         >
-          <SkipBack className="h-4 w-4 fill-current" />
+          <SkipBack className="h-3.5 w-3.5 fill-current" />
         </button>
 
         <button
           type="button"
           onClick={() => void invoke("media_play_pause")}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95"
           title={media.is_playing ? t.media.pauseTitle : t.media.playTitle}
         >
           {media.is_playing ? (
-            <Pause className="h-4 w-4 fill-current" />
+            <Pause className="h-3.5 w-3.5 fill-current" />
           ) : (
-            <Play className="h-4 w-4 translate-x-[1px] fill-current" />
+            <Play className="h-3.5 w-3.5 translate-x-[1px] fill-current" />
           )}
         </button>
 
         <button
           type="button"
           onClick={() => void invoke("media_next")}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
           title={t.media.nextTitle}
         >
-          <SkipForward className="h-4 w-4 fill-current" />
+          <SkipForward className="h-3.5 w-3.5 fill-current" />
         </button>
+      </div>
+
+      {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
+      <div
+        ref={volumeRowRef}
+        className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
+        title={t.volume.wheelHint}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            matchedSession ? onAppMuteToggle(matchedSession.pid) : onMasterMuteToggle()
+          }
+          title={effectiveMuted ? t.volume.unmute : t.volume.mute}
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:text-white active:scale-95"
+        >
+          {effectiveMuted || effectiveVolume === 0 ? (
+            <VolumeX className="h-3.5 w-3.5 text-rose-400" />
+          ) : (
+            <Volume2 className="h-3.5 w-3.5" style={{ color: accentColor }} />
+          )}
+        </button>
+
+        <span
+          className="max-w-[78px] shrink-0 truncate text-[9.5px] font-medium text-white/60"
+          title={targetLabel}
+        >
+          {targetLabel}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <VolumeSlider
+            value={effectiveVolume}
+            muted={effectiveMuted}
+            accentColor={accentColor}
+            heightClass="h-1.5"
+            title={t.volume.wheelHint}
+            onDragStateChange={(d) =>
+              matchedSession
+                ? onAppDragStateChange(d ? matchedSession.pid : null)
+                : undefined
+            }
+            onChange={(lvl) =>
+              matchedSession
+                ? onAppVolumeChange(matchedSession.pid, lvl)
+                : onMasterVolumeChange(lvl)
+            }
+          />
+        </div>
+
+        <span
+          className={`w-7 shrink-0 text-right text-[10px] font-semibold tabular-nums ${
+            effectiveMuted ? "text-rose-300" : "text-white/75"
+          }`}
+        >
+          {displayVol}%
+        </span>
       </div>
     </div>
   );

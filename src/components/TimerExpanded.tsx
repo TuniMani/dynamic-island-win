@@ -36,7 +36,7 @@ export function TimerExpanded({
       : 0;
 
   return (
-    <div className="flex h-[126px] flex-col justify-between pt-1">
+    <div className="flex h-[146px] flex-col justify-between pt-1">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <CircularProgress

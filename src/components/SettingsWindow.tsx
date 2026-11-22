@@ -59,11 +59,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   hud_duration_ms: 2200,
   enable_visualizer: true,
   enable_media_module: true,
+  enable_volume_module: true,
   enable_system_module: true,
   enable_progress_tracker: true,
   enable_timer_module: true,
   enable_dropzone_module: true,
-  module_order: ["media", "system", "progress", "timer"],
+  module_order: ["media", "volume", "system", "progress", "timer"],
 };
 
 export function SettingsWindow() {
@@ -142,6 +143,11 @@ export function SettingsWindow() {
       title: t.settings.modules.media,
       desc: t.settings.modules.mediaDesc,
       key: "enable_media_module",
+    },
+    volume: {
+      title: t.settings.modules.volume,
+      desc: t.settings.modules.volumeDesc,
+      key: "enable_volume_module",
     },
     system: {
       title: t.settings.modules.system,

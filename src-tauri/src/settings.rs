@@ -40,6 +40,7 @@ pub struct AppSettings {
     pub hud_duration_ms: u64,
     pub enable_visualizer: bool,
     pub enable_media_module: bool,
+    pub enable_volume_module: bool,
     pub enable_system_module: bool,
     pub enable_progress_tracker: bool,
     pub enable_timer_module: bool,
@@ -75,12 +76,14 @@ impl Default for AppSettings {
             hud_duration_ms: 2200,
             enable_visualizer: true,
             enable_media_module: true,
+            enable_volume_module: true,
             enable_system_module: true,
             enable_progress_tracker: true,
             enable_timer_module: true,
             enable_dropzone_module: true,
             module_order: vec![
                 "media".to_string(),
+                "volume".to_string(),
                 "system".to_string(),
                 "progress".to_string(),
                 "timer".to_string(),
@@ -101,6 +104,9 @@ impl AppSettings {
         self.background_opacity = self.background_opacity.clamp(20, 100);
         if self.module_order.is_empty() {
             self.module_order = Self::default().module_order;
+        } else if !self.module_order.iter().any(|m| m == "volume") {
+            let idx = 1.min(self.module_order.len());
+            self.module_order.insert(idx, "volume".to_string());
         }
         self
     }
@@ -337,6 +343,8 @@ mod tests {
         assert_eq!(parsed.appearance, "glass");
         assert!(parsed.auto_collapse_on_focus_loss);
         assert!(parsed.enable_media_module);
+        assert!(parsed.enable_volume_module);
+        assert!(parsed.module_order.contains(&"volume".to_string()));
     }
 
     #[test]

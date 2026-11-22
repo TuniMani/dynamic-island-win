@@ -19,7 +19,7 @@ export function ProgressExpanded({
 
   if (tasks.length === 0) {
     return (
-      <div className="flex h-[126px] flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-[146px] flex-col items-center justify-center gap-2 text-center">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/8 text-white/45">
           <Activity className="h-5 w-5" />
         </div>
@@ -32,7 +32,7 @@ export function ProgressExpanded({
   }
 
   return (
-    <div className="flex max-h-[126px] flex-col gap-2 overflow-y-auto pt-1 pr-1">
+    <div className="flex max-h-[146px] flex-col gap-2 overflow-y-auto pt-1 pr-1">
       {tasks.map((task) => (
         <div
           key={task.id}

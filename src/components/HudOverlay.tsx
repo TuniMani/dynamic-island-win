@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Sun, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { DEFAULT_ACCENT, getTranslations } from "../i18n";
 import { LanguageCode } from "../types";
+import { VolumeSlider } from "./VolumeSlider";
 
 interface HudOverlayProps {
   kind: "volume" | "brightness";
@@ -9,6 +11,8 @@ interface HudOverlayProps {
   muted?: boolean;
   lang: LanguageCode;
   accentColor?: string;
+  onInteract?: () => void;
+  onVolumePreview?: (level: number) => void;
 }
 
 export function HudOverlay({
@@ -17,26 +21,50 @@ export function HudOverlay({
   muted = false,
   lang,
   accentColor = DEFAULT_ACCENT,
+  onInteract,
+  onVolumePreview,
 }: HudOverlayProps) {
   const t = getTranslations(lang);
   const isVolume = kind === "volume";
   const effectiveLevel = muted ? 0 : Math.max(0, Math.min(100, level));
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const handleBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const latestRef = useRef({ isVolume, level, onInteract, onVolumePreview });
+  useEffect(() => {
+    latestRef.current = { isVolume, level, onInteract, onVolumePreview };
+  }, [isVolume, level, onInteract, onVolumePreview]);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || !isVolume) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY < 0 ? 2 : -2;
+      const next = Math.max(0, Math.min(100, Math.round(latestRef.current.level + delta)));
+      latestRef.current.onInteract?.();
+      latestRef.current.onVolumePreview?.(next);
+      void invoke("set_system_volume", { level: next });
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [isVolume]);
+
+  const handleSetVolume = (pct: number) => {
     if (!isVolume) return;
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.round(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100);
+    onInteract?.();
+    onVolumePreview?.(pct);
     void invoke("set_system_volume", { level: pct });
   };
 
   return (
-    <div className="flex h-full w-full items-center gap-3 px-4">
+    <div ref={rootRef} className="flex h-full w-full items-center gap-3 px-4">
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           if (isVolume) {
+            onInteract?.();
             void invoke("toggle_system_mute");
           }
         }}
@@ -61,24 +89,28 @@ export function HudOverlay({
           </span>
           <span className="shrink-0 tabular-nums text-white">{effectiveLevel}%</span>
         </div>
-        <div
-          onClick={handleBarClick}
-          className={`h-1.5 w-full overflow-hidden rounded-full bg-white/14 ${
-            isVolume ? "cursor-pointer" : ""
-          }`}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-150"
-            style={{
-              width: `${effectiveLevel}%`,
-              backgroundImage: isVolume
-                ? muted
-                  ? "linear-gradient(to right, #fb7185, #fb7185)"
-                  : `linear-gradient(to right, ${accentColor}, #ffffff)`
-                : "linear-gradient(to right, #fbbf24, #fef08a)",
-            }}
+
+        {isVolume ? (
+          <VolumeSlider
+            value={level}
+            muted={muted}
+            accentColor={accentColor}
+            heightClass="h-2"
+            title={t.volume.wheelHint}
+            onInteract={onInteract}
+            onChange={handleSetVolume}
           />
-        </div>
+        ) : (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/14">
+            <div
+              className="h-full rounded-full transition-all duration-150"
+              style={{
+                width: `${effectiveLevel}%`,
+                backgroundImage: "linear-gradient(to right, #fbbf24, #fef08a)",
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

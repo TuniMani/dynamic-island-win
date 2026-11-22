@@ -26,6 +26,7 @@ import { DEFAULT_ACCENT, getTranslations, normalizeLanguage } from "../i18n";
 import {
   AnimationSpeed,
   AppSettings,
+  AudioAppSession,
   BrightnessState,
   ExpandedTab,
   InitialState,
@@ -57,6 +58,9 @@ const SystemExpanded = lazy(() =>
 );
 const TimerExpanded = lazy(() =>
   import("./TimerExpanded").then((m) => ({ default: m.TimerExpanded })),
+);
+const VolumeExpanded = lazy(() =>
+  import("./VolumeExpanded").then((m) => ({ default: m.VolumeExpanded })),
 );
 
 const BOOT_PREFS_KEY = "di_boot_prefs";
@@ -133,11 +137,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   hud_duration_ms: 2200,
   enable_visualizer: true,
   enable_media_module: true,
+  enable_volume_module: true,
   enable_system_module: true,
   enable_progress_tracker: true,
   enable_timer_module: true,
   enable_dropzone_module: true,
-  module_order: ["media", "system", "progress", "timer"],
+  module_order: ["media", "volume", "system", "progress", "timer"],
 };
 
 function formatClock(): string {
@@ -261,6 +266,7 @@ export function DynamicIsland() {
   });
   const [metrics, setMetrics] = useState<SystemMetrics>(DEFAULT_METRICS);
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
+  const [audioSessions, setAudioSessions] = useState<AudioAppSession[]>([]);
   const [settings, setSettings] = useState<AppSettings>(loadInitialSettings);
   const [bootSettled, setBootSettled] = useState<boolean>(false);
 
@@ -286,11 +292,27 @@ export function DynamicIsland() {
   const hoverCloseTimerRef = useRef<number | null>(null);
   const hudTimerRef = useRef<number | null>(null);
   const settingsRef = useRef<AppSettings>(settings);
+  const expandedRef = useRef<boolean>(expanded);
+  const activeTabRef = useRef<ExpandedTab>(activeTab);
+  const draggingPidRef = useRef<number | null>(null);
+  const recentAppTouchRef = useRef<Map<number, number>>(new Map());
+  const masterPendingRef = useRef<{ inflight: boolean; queued: number | null }>({
+    inflight: false,
+    queued: null,
+  });
 
   // Reveal main pill window immediately once React commits frame 1
   useLayoutEffect(() => {
     void invoke("reveal_main_window");
   }, []);
+
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setBootSettled(true), 180);
@@ -306,6 +328,105 @@ export function DynamicIsland() {
   useEffect(() => {
     void invoke("set_island_expanded", { expanded });
   }, [expanded]);
+
+  const refreshAudioSessions = useCallback(async () => {
+    try {
+      const fresh = await invoke<AudioAppSession[]>("get_audio_sessions");
+      const now = Date.now();
+      setAudioSessions((prev) =>
+        fresh.map((item) => {
+          const touchedAt = recentAppTouchRef.current.get(item.pid) ?? 0;
+          if (draggingPidRef.current === item.pid || now - touchedAt < 650) {
+            const existing = prev.find((p) => p.pid === item.pid);
+            if (existing) {
+              return {
+                ...item,
+                volume: existing.volume,
+                muted: existing.muted,
+              };
+            }
+          }
+          return item;
+        }),
+      );
+    } catch {
+      // Ignore transient COM session enumeration errors
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!expanded || (activeTab !== "media" && activeTab !== "volume")) {
+      return;
+    }
+    void refreshAudioSessions();
+    const id = window.setInterval(() => {
+      void refreshAudioSessions();
+    }, 850);
+    return () => window.clearInterval(id);
+  }, [expanded, activeTab, refreshAudioSessions]);
+
+  const handleMasterVolumeChange = useCallback((level: number) => {
+    setVolume({ level, muted: false });
+    const state = masterPendingRef.current;
+    if (state.inflight) {
+      state.queued = level;
+      return;
+    }
+    const flush = async (lvl: number) => {
+      state.inflight = true;
+      try {
+        await invoke("set_system_volume", { level: lvl });
+      } finally {
+        state.inflight = false;
+        const next = state.queued;
+        if (next !== null) {
+          state.queued = null;
+          void flush(next);
+        }
+      }
+    };
+    void flush(level);
+  }, []);
+
+  const handleMasterMuteToggle = useCallback(() => {
+    setVolume((prev) => ({ ...prev, muted: !prev.muted }));
+    void invoke("toggle_system_mute");
+  }, []);
+
+  const handleAppVolumeChange = useCallback((pid: number, level: number) => {
+    recentAppTouchRef.current.set(pid, Date.now());
+    setAudioSessions((prev) =>
+      prev.map((s) => (s.pid === pid ? { ...s, volume: level } : s)),
+    );
+    void invoke("set_app_volume", { pid, level });
+  }, []);
+
+  const handleAppMuteToggle = useCallback(
+    async (pid: number) => {
+      recentAppTouchRef.current.set(pid, Date.now());
+      setAudioSessions((prev) =>
+        prev.map((s) => (s.pid === pid ? { ...s, muted: !s.muted } : s)),
+      );
+      try {
+        const nextMuted = await invoke<boolean>("toggle_app_mute", { pid });
+        recentAppTouchRef.current.set(pid, Date.now());
+        setAudioSessions((prev) =>
+          prev.map((s) => (s.pid === pid ? { ...s, muted: nextMuted } : s)),
+        );
+      } catch {
+        void refreshAudioSessions();
+      }
+    },
+    [refreshAudioSessions],
+  );
+
+  const handleAppDragStateChange = useCallback((pid: number | null) => {
+    const prevPid = draggingPidRef.current;
+    draggingPidRef.current = pid;
+    if (pid === null && prevPid !== null) {
+      recentAppTouchRef.current.set(prevPid, Date.now());
+    }
+  }, []);
 
   // Extract dominant album art color when dynamic_album accent mode is active
   useEffect(() => {
@@ -392,7 +513,14 @@ export function DynamicIsland() {
       unlisteners.push(
         await listen<VolumeState>("volume-changed", (e) => {
           setVolume(e.payload);
-          triggerHud("volume");
+          if (
+            !(
+              expandedRef.current &&
+              (activeTabRef.current === "volume" || activeTabRef.current === "media")
+            )
+          ) {
+            triggerHud("volume");
+          }
         }),
       );
       unlisteners.push(
@@ -465,6 +593,8 @@ export function DynamicIsland() {
       switch (id) {
         case "media":
           return settings.enable_media_module;
+        case "volume":
+          return settings.enable_volume_module;
         case "system":
           return settings.enable_system_module;
         case "progress":
@@ -475,13 +605,14 @@ export function DynamicIsland() {
     };
     const ordered = settings.module_order.filter(isEnabled);
     // Append any enabled tab missing from custom order
-    (["media", "system", "progress", "timer"] as ExpandedTab[]).forEach((id) => {
+    (["media", "volume", "system", "progress", "timer"] as ExpandedTab[]).forEach((id) => {
       if (isEnabled(id) && !ordered.includes(id)) ordered.push(id);
     });
     return ordered;
   }, [
     settings.module_order,
     settings.enable_media_module,
+    settings.enable_volume_module,
     settings.enable_system_module,
     settings.enable_progress_tracker,
     settings.enable_timer_module,
@@ -548,7 +679,13 @@ export function DynamicIsland() {
       window.clearTimeout(hoverCloseTimerRef.current);
       hoverCloseTimerRef.current = null;
     }
-    if (isDropActive || expanded || settings.interaction_mode !== "hover") return;
+    if (
+      isDropActive ||
+      expanded ||
+      hudKind !== null ||
+      settings.interaction_mode !== "hover"
+    )
+      return;
     hoverOpenTimerRef.current = window.setTimeout(() => {
       setActiveTab(chooseDefaultTab());
       setExpanded(true);
@@ -615,8 +752,8 @@ export function DynamicIsland() {
     baseRadius = 24;
     viewKey = "dropzone";
   } else if (expanded) {
-    baseWidth = 432;
-    baseHeight = 192;
+    baseWidth = 448;
+    baseHeight = 212;
     baseRadius = 28;
     viewKey = "expanded";
   } else if (hudKind !== null) {
@@ -833,17 +970,36 @@ export function DynamicIsland() {
                   {/* Active Tab Body */}
                   <div className="flex-1">
                     {enabledTabs.length === 0 ? (
-                      <div className="flex h-[126px] items-center justify-center text-xs text-white/50">
+                      <div className="flex h-[146px] items-center justify-center text-xs text-white/50">
                         {t.openSettings}
                       </div>
                     ) : (
-                      <Suspense fallback={<div className="h-[126px]" />}>
+                      <Suspense fallback={<div className="h-[146px]" />}>
                         {activeTab === "media" ? (
                           <MediaExpanded
                             media={media}
                             enableVisualizer={settings.enable_visualizer}
                             lang={settings.language}
                             accentColor={accentColor}
+                            volume={volume}
+                            sessions={audioSessions}
+                            onMasterVolumeChange={handleMasterVolumeChange}
+                            onMasterMuteToggle={handleMasterMuteToggle}
+                            onAppVolumeChange={handleAppVolumeChange}
+                            onAppMuteToggle={handleAppMuteToggle}
+                            onAppDragStateChange={handleAppDragStateChange}
+                          />
+                        ) : activeTab === "volume" ? (
+                          <VolumeExpanded
+                            volume={volume}
+                            sessions={audioSessions}
+                            lang={settings.language}
+                            accentColor={accentColor}
+                            onMasterVolumeChange={handleMasterVolumeChange}
+                            onMasterMuteToggle={handleMasterMuteToggle}
+                            onAppVolumeChange={handleAppVolumeChange}
+                            onAppMuteToggle={handleAppMuteToggle}
+                            onAppDragStateChange={handleAppDragStateChange}
                           />
                         ) : activeTab === "system" ? (
                           <SystemExpanded
@@ -910,6 +1066,10 @@ export function DynamicIsland() {
                     muted={volume.muted}
                     lang={settings.language}
                     accentColor={accentColor}
+                    onInteract={() => triggerHud(hudKind)}
+                    onVolumePreview={(lvl) =>
+                      setVolume((prev) => ({ ...prev, level: lvl, muted: false }))
+                    }
                   />
                 </Suspense>
               ) : showProgressCompact ? (

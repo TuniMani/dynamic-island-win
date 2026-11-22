@@ -8,8 +8,9 @@ mod tray;
 mod win32_window;
 
 use audio_brightness::{
-    set_system_volume_level, start_brightness_listener, start_volume_listener,
-    toggle_system_mute_state, BrightnessState, VolumeState,
+    list_audio_sessions, set_app_volume_level, set_system_volume_level, start_brightness_listener,
+    start_volume_listener, toggle_app_mute_state, toggle_system_mute_state, AudioAppSession,
+    BrightnessState, VolumeState,
 };
 use dropzone::{
     copy_files_to_clipboard, copy_paths_text_to_clipboard, create_zip_with_progress,
@@ -261,6 +262,11 @@ fn media_cycle_session(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
+fn get_system_volume(state: State<'_, AppState>) -> VolumeState {
+    state.volume.lock().map(|g| g.clone()).unwrap_or_default()
+}
+
+#[tauri::command]
 fn set_system_volume(level: u8) -> Result<(), String> {
     set_system_volume_level(level)
 }
@@ -268,6 +274,27 @@ fn set_system_volume(level: u8) -> Result<(), String> {
 #[tauri::command]
 fn toggle_system_mute() -> Result<(), String> {
     toggle_system_mute_state()
+}
+
+#[tauri::command]
+async fn get_audio_sessions() -> Result<Vec<AudioAppSession>, String> {
+    tokio::task::spawn_blocking(list_audio_sessions)
+        .await
+        .map_err(|e| format!("Audio session task error: {e}"))
+}
+
+#[tauri::command]
+async fn set_app_volume(pid: u32, level: u8) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || set_app_volume_level(pid, level))
+        .await
+        .map_err(|e| format!("Set app volume task error: {e}"))?
+}
+
+#[tauri::command]
+async fn toggle_app_mute(pid: u32) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || toggle_app_mute_state(pid))
+        .await
+        .map_err(|e| format!("Toggle app mute task error: {e}"))?
 }
 
 #[tauri::command]
@@ -419,8 +446,12 @@ pub fn run() {
             media_seek,
             media_select_session,
             media_cycle_session,
+            get_system_volume,
             set_system_volume,
             toggle_system_mute,
+            get_audio_sessions,
+            set_app_volume,
+            toggle_app_mute,
             dropzone_copy_files,
             dropzone_copy_paths,
             dropzone_create_zip,
