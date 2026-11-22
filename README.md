@@ -39,7 +39,7 @@ Engineered in Rust to run silently in the background with virtually zero resourc
   - Integrates with Windows System Media Transport Controls (Spotify, Chrome, Edge, Apple Music, Brave, VLC, etc.).
   - Compact album art + GPU-accelerated audio spectrum bars reacting to real-time system audio peaks.
   - Expanded view with track metadata, seekable timeline, instant source switching, inline per-app volume control, and Play/Pause/Next/Previous controls.
-  - **Compact Media Mode (Toggleable Media Controls)**: Turn off **Show Media Controls** in Settings to hide the scrubber, playback buttons, and inline volume bar for a slim, ultra-compact media header.
+  - **Toggleable Media Volume Bar**: Turn off **Show Media Volume Bar** in Settings to hide the inline per-app volume slider for a more compact Media card while keeping the seek bar and playback controls intact.
 - **Background Progress Tracking**:
   - Tracks Explorer file copy/move dialogs (`OperationStatusWindow`), classic progress dialogs (`msctls_progress32`), and taskbar button progress (`ITaskbarList3` via UIAutomation) with a circular progress ring.
 - **System Resource Monitor & Countdown Timer**:

@@ -769,8 +769,8 @@ export function DynamicIsland() {
     viewKey = "dropzone";
   } else if (expanded) {
     baseWidth = 448;
-    baseHeight = isCompactMediaExpanded ? 122 : 212;
-    baseRadius = isCompactMediaExpanded ? 24 : 28;
+    baseHeight = isCompactMediaExpanded ? 184 : 212;
+    baseRadius = 28;
     viewKey = "expanded";
   } else if (hudKind !== null) {
     baseWidth = 272;
@@ -992,7 +992,7 @@ export function DynamicIsland() {
                     ) : (
                       <Suspense
                         fallback={
-                          <div className={isCompactMediaExpanded ? "h-[56px]" : "h-[146px]"} />
+                          <div className={isCompactMediaExpanded ? "h-[118px]" : "h-[146px]"} />
                         }
                       >
                         {activeTab === "media" ? (

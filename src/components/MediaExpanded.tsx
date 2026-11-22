@@ -254,7 +254,7 @@ export function MediaExpanded({
       className={
         showMediaControls
           ? "flex h-[146px] flex-col justify-between pt-0.5"
-          : "flex h-[56px] flex-col justify-center pt-0.5"
+          : "flex h-[118px] flex-col justify-between pt-0.5"
       }
     >
       <div className="flex items-center gap-2.5">
@@ -327,8 +327,6 @@ export function MediaExpanded({
         )}
       </div>
 
-      {showMediaControls && (
-        <>
           <div className="space-y-0.5">
             <div
               onClick={handleSeekClick}
@@ -383,7 +381,8 @@ export function MediaExpanded({
           </div>
 
           {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
-          <div
+          {showMediaControls && (
+            <div
             ref={volumeRowRef}
             className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
             title={t.volume.wheelHint}
@@ -438,7 +437,6 @@ export function MediaExpanded({
               {displayVol}%
             </span>
           </div>
-        </>
       )}
     </div>
   );
