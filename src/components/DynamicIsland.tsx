@@ -743,7 +743,6 @@ export function DynamicIsland() {
   const isCompactMediaExpanded =
     expanded &&
     activeTab === "media" &&
-    media.has_media &&
     !settings.show_media_controls;
 
   // Base unscaled dimensions & corner radius
@@ -768,8 +767,8 @@ export function DynamicIsland() {
     baseRadius = 24;
     viewKey = "dropzone";
   } else if (expanded) {
-    baseWidth = 448;
-    baseHeight = isCompactMediaExpanded ? 184 : 212;
+    baseWidth = 414;
+    baseHeight = isCompactMediaExpanded ? 192 : 212;
     baseRadius = 28;
     viewKey = "expanded";
   } else if (hudKind !== null) {
@@ -918,7 +917,7 @@ export function DynamicIsland() {
                 >
                   {/* Top Tabs & Controls */}
                   <div className="flex items-center justify-between gap-1.5">
-                    <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden rounded-full bg-white/[0.06] p-0.5">
+                    <div className="flex min-w-0 max-w-full items-center gap-0.5 overflow-hidden rounded-full bg-white/[0.06] p-0.5">
                       {enabledTabs.map((tabId) => {
                         const active = activeTab === tabId;
                         return (
@@ -984,15 +983,15 @@ export function DynamicIsland() {
                   </div>
 
                   {/* Active Tab Body */}
-                  <div className="flex-1">
+                  <div className="min-h-0 flex-1">
                     {enabledTabs.length === 0 ? (
-                      <div className="flex h-[146px] items-center justify-center text-xs text-white/50">
+                      <div className="flex h-full items-center justify-center text-xs text-white/50">
                         {t.openSettings}
                       </div>
                     ) : (
                       <Suspense
                         fallback={
-                          <div className={isCompactMediaExpanded ? "h-[118px]" : "h-[146px]"} />
+                          <div className={isCompactMediaExpanded ? "h-[126px]" : "h-[146px]"} />
                         }
                       >
                         {activeTab === "media" ? (
@@ -1151,6 +1150,7 @@ export function DynamicIsland() {
                         active={media.is_playing}
                         compact
                         accentColor={accentColor}
+                        livePeak={null}
                       />
                     )}
                   </div>

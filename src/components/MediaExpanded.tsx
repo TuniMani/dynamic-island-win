@@ -210,7 +210,7 @@ export function MediaExpanded({
 
   if (!media.has_media) {
     return (
-      <div className="flex h-[146px] flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/8 text-white/45">
           <Disc3 className="h-5 w-5" />
         </div>
@@ -253,12 +253,16 @@ export function MediaExpanded({
     <div
       className={
         showMediaControls
-          ? "flex h-[146px] flex-col justify-between pt-0.5"
-          : "flex h-[118px] flex-col justify-between pt-0.5"
+          ? "flex h-full flex-col justify-between pt-1"
+          : "flex flex-col gap-2.5 pt-0.5"
       }
     >
-      <div className="flex items-center gap-2.5">
-        <div className="relative h-[50px] w-[50px] shrink-0 overflow-hidden rounded-2xl border border-white/12 bg-white/6 shadow-lg">
+      <div className={`flex items-center ${showMediaControls ? "gap-2.5" : "gap-3"}`}>
+        <div
+          className={`relative shrink-0 overflow-hidden rounded-2xl border border-white/12 bg-white/6 shadow-lg ${
+            showMediaControls ? "h-[50px] w-[50px]" : "h-14 w-14"
+          }`}
+        >
           {media.thumbnail && !imgError ? (
             <img
               src={media.thumbnail}
@@ -274,7 +278,7 @@ export function MediaExpanded({
                 background: `linear-gradient(135deg, ${hexToRgba(accentColor, 0.35)}, rgba(255,255,255,0.08))`,
               }}
             >
-              <Disc3 className="h-6 w-6" />
+              <Disc3 className={showMediaControls ? "h-6 w-6" : "h-7 w-7"} />
             </div>
           )}
         </div>
@@ -312,131 +316,161 @@ export function MediaExpanded({
               </button>
             )}
           </div>
-          <p className="mt-0.5 truncate text-[12.5px] font-semibold leading-tight text-white">
+          <p
+            className={
+              showMediaControls
+                ? "mt-0.5 truncate text-[12.5px] font-semibold leading-tight text-white"
+                : "mt-0.5 truncate text-[13px] font-semibold text-white"
+            }
+          >
             {media.title || t.media.unknownTrack}
           </p>
-          <p className="truncate text-[10.5px] leading-tight text-white/60">
+          <p
+            className={
+              showMediaControls
+                ? "truncate text-[10.5px] leading-tight text-white/60"
+                : "truncate text-[11px] text-white/60"
+            }
+          >
             {media.artist || media.album || t.media.unknownArtist}
           </p>
         </div>
 
         {enableVisualizer && (
           <div className="shrink-0 pr-1">
-            <AudioVisualizer active={media.is_playing} accentColor={accentColor} />
+            <AudioVisualizer
+              active={media.is_playing}
+              accentColor={accentColor}
+              livePeak={showMediaControls ? (matchedSession?.peak ?? null) : null}
+            />
           </div>
         )}
       </div>
 
-          <div className="space-y-0.5">
-            <div
-              onClick={handleSeekClick}
-              className="group relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/14"
-              title={t.media.seekTitle}
-            >
-              <div
-                className="h-full rounded-full transition-[width] duration-200 ease-linear"
-                style={{
-                  width: `${progressPct}%`,
-                  backgroundImage: `linear-gradient(to right, ${accentColor}, #ffffff)`,
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[9.5px] tabular-nums text-white/45">
-              <span>{formatSecs(currentPos)}</span>
-              <span>{media.duration_secs > 0 ? formatSecs(media.duration_secs) : "--:--"}</span>
-            </div>
-          </div>
+      <div className={showMediaControls ? "space-y-0.5" : "space-y-1"}>
+        <div
+          onClick={handleSeekClick}
+          className="group relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/14"
+          title={t.media.seekTitle}
+        >
+          <div
+            className="h-full rounded-full transition-[width] duration-200 ease-linear"
+            style={{
+              width: `${progressPct}%`,
+              backgroundImage: `linear-gradient(to right, ${accentColor}, #ffffff)`,
+            }}
+          />
+        </div>
+        <div
+          className={`flex justify-between tabular-nums text-white/45 ${
+            showMediaControls ? "text-[9.5px]" : "text-[10px]"
+          }`}
+        >
+          <span>{formatSecs(currentPos)}</span>
+          <span>{media.duration_secs > 0 ? formatSecs(media.duration_secs) : "--:--"}</span>
+        </div>
+      </div>
 
-          <div className="flex items-center justify-center gap-5">
-            <button
-              type="button"
-              onClick={() => void invoke("media_previous")}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
-              title={t.media.prevTitle}
-            >
-              <SkipBack className="h-3.5 w-3.5 fill-current" />
-            </button>
+      <div className="flex items-center justify-center gap-5">
+        <button
+          type="button"
+          onClick={() => void invoke("media_previous")}
+          className={`flex items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95 ${
+            showMediaControls ? "h-7 w-7" : "h-8 w-8"
+          }`}
+          title={t.media.prevTitle}
+        >
+          <SkipBack className={`${showMediaControls ? "h-3.5 w-3.5" : "h-4 w-4"} fill-current`} />
+        </button>
 
-            <button
-              type="button"
-              onClick={() => void invoke("media_play_pause")}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95"
-              title={media.is_playing ? t.media.pauseTitle : t.media.playTitle}
-            >
-              {media.is_playing ? (
-                <Pause className="h-3.5 w-3.5 fill-current" />
-              ) : (
-                <Play className="h-3.5 w-3.5 translate-x-[1px] fill-current" />
-              )}
-            </button>
+        <button
+          type="button"
+          onClick={() => void invoke("media_play_pause")}
+          className={`flex items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95 ${
+            showMediaControls ? "h-8 w-8" : "h-9 w-9"
+          }`}
+          title={media.is_playing ? t.media.pauseTitle : t.media.playTitle}
+        >
+          {media.is_playing ? (
+            <Pause className={`${showMediaControls ? "h-3.5 w-3.5" : "h-4 w-4"} fill-current`} />
+          ) : (
+            <Play
+              className={`${showMediaControls ? "h-3.5 w-3.5" : "h-4 w-4"} translate-x-[1px] fill-current`}
+            />
+          )}
+        </button>
 
-            <button
-              type="button"
-              onClick={() => void invoke("media_next")}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
-              title={t.media.nextTitle}
-            >
-              <SkipForward className="h-3.5 w-3.5 fill-current" />
-            </button>
-          </div>
+        <button
+          type="button"
+          onClick={() => void invoke("media_next")}
+          className={`flex items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95 ${
+            showMediaControls ? "h-7 w-7" : "h-8 w-8"
+          }`}
+          title={t.media.nextTitle}
+        >
+          <SkipForward
+            className={`${showMediaControls ? "h-3.5 w-3.5" : "h-4 w-4"} fill-current`}
+          />
+        </button>
+      </div>
 
-          {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
-          {showMediaControls && (
-            <div
-            ref={volumeRowRef}
-            className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
-            title={t.volume.wheelHint}
+      {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
+      {showMediaControls && (
+        <div
+          ref={volumeRowRef}
+          className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
+          title={t.volume.wheelHint}
+        >
+          <button
+            type="button"
+            onClick={() =>
+              matchedSession ? onAppMuteToggle(matchedSession.pid) : onMasterMuteToggle()
+            }
+            title={effectiveMuted ? t.volume.unmute : t.volume.mute}
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:text-white active:scale-95"
           >
-            <button
-              type="button"
-              onClick={() =>
-                matchedSession ? onAppMuteToggle(matchedSession.pid) : onMasterMuteToggle()
+            {effectiveMuted || effectiveVolume === 0 ? (
+              <VolumeX className="h-3.5 w-3.5 text-rose-400" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" style={{ color: accentColor }} />
+            )}
+          </button>
+
+          <span
+            className="max-w-[78px] shrink-0 truncate text-[9.5px] font-medium text-white/60"
+            title={targetLabel}
+          >
+            {targetLabel}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <VolumeSlider
+              value={effectiveVolume}
+              muted={effectiveMuted}
+              accentColor={accentColor}
+              heightClass="h-1.5"
+              title={t.volume.wheelHint}
+              onDragStateChange={(d) =>
+                matchedSession
+                  ? onAppDragStateChange(d ? matchedSession.pid : null)
+                  : undefined
               }
-              title={effectiveMuted ? t.volume.unmute : t.volume.mute}
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:text-white active:scale-95"
-            >
-              {effectiveMuted || effectiveVolume === 0 ? (
-                <VolumeX className="h-3.5 w-3.5 text-rose-400" />
-              ) : (
-                <Volume2 className="h-3.5 w-3.5" style={{ color: accentColor }} />
-              )}
-            </button>
-
-            <span
-              className="max-w-[78px] shrink-0 truncate text-[9.5px] font-medium text-white/60"
-              title={targetLabel}
-            >
-              {targetLabel}
-            </span>
-
-            <div className="min-w-0 flex-1">
-              <VolumeSlider
-                value={effectiveVolume}
-                muted={effectiveMuted}
-                accentColor={accentColor}
-                heightClass="h-1.5"
-                title={t.volume.wheelHint}
-                onDragStateChange={(d) =>
-                  matchedSession
-                    ? onAppDragStateChange(d ? matchedSession.pid : null)
-                    : undefined
-                }
-                onChange={(lvl) =>
-                  matchedSession
-                    ? onAppVolumeChange(matchedSession.pid, lvl)
-                    : onMasterVolumeChange(lvl)
-                }
-              />
-            </div>
-
-            <span
-              className={`w-7 shrink-0 text-right text-[10px] font-semibold tabular-nums ${
-                effectiveMuted ? "text-rose-300" : "text-white/75"
-              }`}
-            >
-              {displayVol}%
-            </span>
+              onChange={(lvl) =>
+                matchedSession
+                  ? onAppVolumeChange(matchedSession.pid, lvl)
+                  : onMasterVolumeChange(lvl)
+              }
+            />
           </div>
+
+          <span
+            className={`w-7 shrink-0 text-right text-[10px] font-semibold tabular-nums ${
+              effectiveMuted ? "text-rose-300" : "text-white/75"
+            }`}
+          >
+            {displayVol}%
+          </span>
+        </div>
       )}
     </div>
   );

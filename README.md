@@ -5,7 +5,7 @@
 [![Rust + React](https://img.shields.io/badge/Stack-Rust%20%2B%20React%20%2B%20TypeScript-F97316?style=flat-square)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10B981?style=flat-square)](./LICENSE)
 
-A lightweight, native-feeling **Dynamic Island** desktop overlay for **Windows 10 & Windows 11**. Built with **Tauri v2**, **Win32/WinRT**, **React**, **TypeScript**, **Tailwind CSS**, and **Framer Motion**, it brings fluid spring animations, live media playback controls, background task progress, system HUDs, and a file dropzone to your Windows desktop without ever stealing focus from games or active windows.
+A lightweight, native-feeling **Dynamic Island** desktop overlay for **Windows 10 & Windows 11**. Built with **Tauri v2**, **Win32/WinRT**, **React**, **TypeScript**, **Tailwind CSS**, and **Framer Motion**, it brings fluid spring animations, live media playback controls, per-app volume mixing, background task progress, system HUDs, and a file dropzone to your Windows desktop without ever stealing focus from games or active windows.
 
 ![Hover & Auto-Collapse Animation](assets/3-hover.gif)
 
@@ -24,7 +24,7 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 ### 1. Instant Media Controls & Source Switching (Spotify, YouTube & More)
 ![Media & Source Switching](assets/1-youtube.gif)
 
-### 2. Multi-Tab Overview (Media, System, Progress & Timer)
+### 2. Multi-Tab Overview (Media, Audio, System, Progress & Timer)
 ![Multi-Tab Overview](assets/2-tabs.gif)
 
 ### 3. Deep Customization & Multi-Language Settings
@@ -37,9 +37,11 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 - **Zero Focus Stealing (`WS_EX_NOACTIVATE`)**: Interacting with or clicking the island never steals foreground focus from fullscreen/borderless games, browsers, or editors, and areas outside the visible pill are click-through.
 - **Live Media Controls & Visualizer (Windows SMTC)**:
   - Integrates with Windows System Media Transport Controls (Spotify, Chrome, Edge, Apple Music, Brave, VLC, etc.).
-  - Compact album art + GPU-accelerated audio spectrum bars reacting to real-time system audio peaks.
+  - Compact album art + GPU-accelerated audio spectrum bars reacting smoothly to real-time system audio peaks.
   - Expanded view with track metadata, seekable timeline, instant source switching, inline per-app volume control, and Play/Pause/Next/Previous controls.
   - **Toggleable Media Volume Bar**: Turn off **Show Media Volume Bar** in Settings to hide the inline per-app volume slider for a more compact Media card while keeping the seek bar and playback controls intact.
+- **Per-App Audio Mixer (`Audio` Tab)**:
+  - View active Windows audio sessions and adjust or mute individual application volumes directly from the island.
 - **Background Progress Tracking**:
   - Tracks Explorer file copy/move dialogs (`OperationStatusWindow`), classic progress dialogs (`msctls_progress32`), and taskbar button progress (`ITaskbarList3` via UIAutomation) with a circular progress ring.
 - **System Resource Monitor & Countdown Timer**:
@@ -49,8 +51,8 @@ Engineered in Rust to run silently in the background with virtually zero resourc
   - Automatically pops open when system volume (`IAudioEndpointVolumeCallback`) or screen brightness (`WmiMonitorBrightnessEvent` / DDC/CI) changes.
 - **Drag & Drop File Dropzone**:
   - Drag files from Explorer onto the island to copy files directly to the Windows clipboard (`CF_HDROP`), copy file paths, or create a `.zip` archive with live progress.
-- **Deep Personalization & Multi-Language (`en` / `tr`)**:
-  - Instant **English** (default) and **Turkish** switching without restart.
+- **Deep Personalization & 8-Language Support**:
+  - Instant switching across **8 languages** (`EN`, `TR`, `DE`, `ES`, `FR`, `RU`, `JA`, `PT`) without restart.
   - Quick presets (`Top Center`, `Top Left`, `Top Right`, `Bottom Center`), multi-monitor support, X/Y fine offsets, and **Unlock Position (Drag to Move)**.
   - Adjustable scale (`75%–140%`), corner radius (`16px` card to full pill), `Pure Black (OLED)` / `Glassmorphism` / `Custom Opacity`, Dynamic Album or custom Accent Color, and spring animation speed.
   - Smart behavior rules: auto-collapse on outside click / focus loss, configurable mouse-leave delay, hover/click trigger, **Start with Windows**, **Auto-hide in Fullscreen**, **Auto-hide when idle**, and modular tab toggling/reordering.
@@ -66,7 +68,7 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 ## 🛡️ Security & VirusTotal Verification
 
 Verified release executable scan report:
-- 🔗 [View VirusTotal Report](https://www.virustotal.com/gui/file/f7afed9e007ce9e85073d7a7b7683f805571e7ee26b06707ea3a8c1a4a5d5511?nocache=1)
+- 🔗 [View VirusTotal Report](https://www.virustotal.com/gui/file/fde61677b6cb11527ea8c8cb7c03d641242f34002efa4054eecd09e24903a78a?nocache=1)
 
 ![VirusTotal Scan Result](assets/virustotal.png)
 
