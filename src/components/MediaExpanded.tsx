@@ -19,6 +19,7 @@ import { VolumeSlider } from "./VolumeSlider";
 interface MediaExpandedProps {
   media: MediaState;
   enableVisualizer: boolean;
+  showMediaControls?: boolean;
   lang: LanguageCode;
   accentColor?: string;
   volume: VolumeState;
@@ -133,6 +134,7 @@ function findMatchingAudioSession(
 export function MediaExpanded({
   media,
   enableVisualizer,
+  showMediaControls = true,
   lang,
   accentColor = DEFAULT_ACCENT,
   volume,
@@ -186,7 +188,7 @@ export function MediaExpanded({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [media.has_media]);
+  }, [media.has_media, showMediaControls]);
 
   useEffect(() => {
     setImgError(false);
@@ -248,7 +250,13 @@ export function MediaExpanded({
     : null;
 
   return (
-    <div className="flex h-[146px] flex-col justify-between pt-0.5">
+    <div
+      className={
+        showMediaControls
+          ? "flex h-[146px] flex-col justify-between pt-0.5"
+          : "flex h-[56px] flex-col justify-center pt-0.5"
+      }
+    >
       <div className="flex items-center gap-2.5">
         <div className="relative h-[50px] w-[50px] shrink-0 overflow-hidden rounded-2xl border border-white/12 bg-white/6 shadow-lg">
           {media.thumbnail && !imgError ? (
@@ -319,115 +327,119 @@ export function MediaExpanded({
         )}
       </div>
 
-      <div className="space-y-0.5">
-        <div
-          onClick={handleSeekClick}
-          className="group relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/14"
-          title={t.media.seekTitle}
-        >
+      {showMediaControls && (
+        <>
+          <div className="space-y-0.5">
+            <div
+              onClick={handleSeekClick}
+              className="group relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/14"
+              title={t.media.seekTitle}
+            >
+              <div
+                className="h-full rounded-full transition-[width] duration-200 ease-linear"
+                style={{
+                  width: `${progressPct}%`,
+                  backgroundImage: `linear-gradient(to right, ${accentColor}, #ffffff)`,
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[9.5px] tabular-nums text-white/45">
+              <span>{formatSecs(currentPos)}</span>
+              <span>{media.duration_secs > 0 ? formatSecs(media.duration_secs) : "--:--"}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-5">
+            <button
+              type="button"
+              onClick={() => void invoke("media_previous")}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
+              title={t.media.prevTitle}
+            >
+              <SkipBack className="h-3.5 w-3.5 fill-current" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void invoke("media_play_pause")}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95"
+              title={media.is_playing ? t.media.pauseTitle : t.media.playTitle}
+            >
+              {media.is_playing ? (
+                <Pause className="h-3.5 w-3.5 fill-current" />
+              ) : (
+                <Play className="h-3.5 w-3.5 translate-x-[1px] fill-current" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void invoke("media_next")}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
+              title={t.media.nextTitle}
+            >
+              <SkipForward className="h-3.5 w-3.5 fill-current" />
+            </button>
+          </div>
+
+          {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
           <div
-            className="h-full rounded-full transition-[width] duration-200 ease-linear"
-            style={{
-              width: `${progressPct}%`,
-              backgroundImage: `linear-gradient(to right, ${accentColor}, #ffffff)`,
-            }}
-          />
-        </div>
-        <div className="flex justify-between text-[9.5px] tabular-nums text-white/45">
-          <span>{formatSecs(currentPos)}</span>
-          <span>{media.duration_secs > 0 ? formatSecs(media.duration_secs) : "--:--"}</span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-center gap-5">
-        <button
-          type="button"
-          onClick={() => void invoke("media_previous")}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
-          title={t.media.prevTitle}
-        >
-          <SkipBack className="h-3.5 w-3.5 fill-current" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void invoke("media_play_pause")}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black shadow-md transition hover:scale-105 active:scale-95"
-          title={media.is_playing ? t.media.pauseTitle : t.media.playTitle}
-        >
-          {media.is_playing ? (
-            <Pause className="h-3.5 w-3.5 fill-current" />
-          ) : (
-            <Play className="h-3.5 w-3.5 translate-x-[1px] fill-current" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void invoke("media_next")}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-white/75 transition hover:bg-white/12 hover:text-white active:scale-95"
-          title={t.media.nextTitle}
-        >
-          <SkipForward className="h-3.5 w-3.5 fill-current" />
-        </button>
-      </div>
-
-      {/* Compact Inline Volume Bar bound to active media app (fallback: Master Volume) */}
-      <div
-        ref={volumeRowRef}
-        className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
-        title={t.volume.wheelHint}
-      >
-        <button
-          type="button"
-          onClick={() =>
-            matchedSession ? onAppMuteToggle(matchedSession.pid) : onMasterMuteToggle()
-          }
-          title={effectiveMuted ? t.volume.unmute : t.volume.mute}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:text-white active:scale-95"
-        >
-          {effectiveMuted || effectiveVolume === 0 ? (
-            <VolumeX className="h-3.5 w-3.5 text-rose-400" />
-          ) : (
-            <Volume2 className="h-3.5 w-3.5" style={{ color: accentColor }} />
-          )}
-        </button>
-
-        <span
-          className="max-w-[78px] shrink-0 truncate text-[9.5px] font-medium text-white/60"
-          title={targetLabel}
-        >
-          {targetLabel}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <VolumeSlider
-            value={effectiveVolume}
-            muted={effectiveMuted}
-            accentColor={accentColor}
-            heightClass="h-1.5"
+            ref={volumeRowRef}
+            className="flex h-[26px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-2.5"
             title={t.volume.wheelHint}
-            onDragStateChange={(d) =>
-              matchedSession
-                ? onAppDragStateChange(d ? matchedSession.pid : null)
-                : undefined
-            }
-            onChange={(lvl) =>
-              matchedSession
-                ? onAppVolumeChange(matchedSession.pid, lvl)
-                : onMasterVolumeChange(lvl)
-            }
-          />
-        </div>
+          >
+            <button
+              type="button"
+              onClick={() =>
+                matchedSession ? onAppMuteToggle(matchedSession.pid) : onMasterMuteToggle()
+              }
+              title={effectiveMuted ? t.volume.unmute : t.volume.mute}
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:text-white active:scale-95"
+            >
+              {effectiveMuted || effectiveVolume === 0 ? (
+                <VolumeX className="h-3.5 w-3.5 text-rose-400" />
+              ) : (
+                <Volume2 className="h-3.5 w-3.5" style={{ color: accentColor }} />
+              )}
+            </button>
 
-        <span
-          className={`w-7 shrink-0 text-right text-[10px] font-semibold tabular-nums ${
-            effectiveMuted ? "text-rose-300" : "text-white/75"
-          }`}
-        >
-          {displayVol}%
-        </span>
-      </div>
+            <span
+              className="max-w-[78px] shrink-0 truncate text-[9.5px] font-medium text-white/60"
+              title={targetLabel}
+            >
+              {targetLabel}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <VolumeSlider
+                value={effectiveVolume}
+                muted={effectiveMuted}
+                accentColor={accentColor}
+                heightClass="h-1.5"
+                title={t.volume.wheelHint}
+                onDragStateChange={(d) =>
+                  matchedSession
+                    ? onAppDragStateChange(d ? matchedSession.pid : null)
+                    : undefined
+                }
+                onChange={(lvl) =>
+                  matchedSession
+                    ? onAppVolumeChange(matchedSession.pid, lvl)
+                    : onMasterVolumeChange(lvl)
+                }
+              />
+            </div>
+
+            <span
+              className={`w-7 shrink-0 text-right text-[10px] font-semibold tabular-nums ${
+                effectiveMuted ? "text-rose-300" : "text-white/75"
+              }`}
+            >
+              {displayVol}%
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

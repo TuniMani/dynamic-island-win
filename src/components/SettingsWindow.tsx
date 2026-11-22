@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   auto_hide_fullscreen: false,
   auto_hide_idle_secs: 0,
   show_system_metrics_in_idle: false,
+  show_media_controls: true,
   hud_duration_ms: 2200,
   enable_visualizer: true,
   enable_media_module: true,
@@ -849,6 +850,11 @@ export function SettingsWindow() {
 
               {/* Additional Sub-features */}
               {[
+                {
+                  key: "show_media_controls" as const,
+                  title: t.settings.modules.mediaControls,
+                  desc: t.settings.modules.mediaControlsDesc,
+                },
                 {
                   key: "enable_visualizer" as const,
                   title: t.settings.modules.visualizer,

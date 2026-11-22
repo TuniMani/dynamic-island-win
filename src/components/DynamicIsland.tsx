@@ -134,6 +134,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   auto_hide_fullscreen: false,
   auto_hide_idle_secs: 0,
   show_system_metrics_in_idle: false,
+  show_media_controls: true,
   hud_duration_ms: 2200,
   enable_visualizer: true,
   enable_media_module: true,
@@ -229,6 +230,10 @@ function loadInitialSettings(): AppSettings {
         typeof parsed.accent_color === "string" && parsed.accent_color.length > 0
           ? parsed.accent_color
           : DEFAULT_ACCENT,
+      show_media_controls:
+        typeof parsed.show_media_controls === "boolean"
+          ? parsed.show_media_controls
+          : DEFAULT_SETTINGS.show_media_controls,
     };
   } catch {
     return { ...DEFAULT_SETTINGS, language: cachedLang };
@@ -250,6 +255,7 @@ function saveBootPrefs(s: AppSettings) {
         background_opacity: s.background_opacity,
         accent_mode: s.accent_mode,
         accent_color: s.accent_color,
+        show_media_controls: s.show_media_controls,
       }),
     );
   } catch {
@@ -355,7 +361,11 @@ export function DynamicIsland() {
   }, []);
 
   useEffect(() => {
-    if (!expanded || (activeTab !== "media" && activeTab !== "volume")) {
+    if (
+      !expanded ||
+      (activeTab !== "volume" &&
+        !(activeTab === "media" && settings.show_media_controls))
+    ) {
       return;
     }
     void refreshAudioSessions();
@@ -363,7 +373,7 @@ export function DynamicIsland() {
       void refreshAudioSessions();
     }, 850);
     return () => window.clearInterval(id);
-  }, [expanded, activeTab, refreshAudioSessions]);
+  }, [expanded, activeTab, settings.show_media_controls, refreshAudioSessions]);
 
   const handleMasterVolumeChange = useCallback((level: number) => {
     setVolume({ level, muted: false });
@@ -730,6 +740,12 @@ export function DynamicIsland() {
       : settings.accent_color || DEFAULT_ACCENT;
   const scale = Math.max(0.75, Math.min(1.4, settings.scale || 1.0));
 
+  const isCompactMediaExpanded =
+    expanded &&
+    activeTab === "media" &&
+    media.has_media &&
+    !settings.show_media_controls;
+
   // Base unscaled dimensions & corner radius
   let baseWidth = 136;
   let baseHeight = 34;
@@ -753,8 +769,8 @@ export function DynamicIsland() {
     viewKey = "dropzone";
   } else if (expanded) {
     baseWidth = 448;
-    baseHeight = 212;
-    baseRadius = 28;
+    baseHeight = isCompactMediaExpanded ? 122 : 212;
+    baseRadius = isCompactMediaExpanded ? 24 : 28;
     viewKey = "expanded";
   } else if (hudKind !== null) {
     baseWidth = 272;
@@ -974,11 +990,16 @@ export function DynamicIsland() {
                         {t.openSettings}
                       </div>
                     ) : (
-                      <Suspense fallback={<div className="h-[146px]" />}>
+                      <Suspense
+                        fallback={
+                          <div className={isCompactMediaExpanded ? "h-[56px]" : "h-[146px]"} />
+                        }
+                      >
                         {activeTab === "media" ? (
                           <MediaExpanded
                             media={media}
                             enableVisualizer={settings.enable_visualizer}
+                            showMediaControls={settings.show_media_controls}
                             lang={settings.language}
                             accentColor={accentColor}
                             volume={volume}

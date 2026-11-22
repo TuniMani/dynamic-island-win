@@ -37,6 +37,7 @@ pub struct AppSettings {
     pub auto_hide_fullscreen: bool,
     pub auto_hide_idle_secs: u32,
     pub show_system_metrics_in_idle: bool,
+    pub show_media_controls: bool,
     pub hud_duration_ms: u64,
     pub enable_visualizer: bool,
     pub enable_media_module: bool,
@@ -73,6 +74,7 @@ impl Default for AppSettings {
             auto_hide_fullscreen: false,
             auto_hide_idle_secs: 0,
             show_system_metrics_in_idle: false,
+            show_media_controls: true,
             hud_duration_ms: 2200,
             enable_visualizer: true,
             enable_media_module: true,
@@ -344,6 +346,7 @@ mod tests {
         assert!(parsed.auto_collapse_on_focus_loss);
         assert!(parsed.enable_media_module);
         assert!(parsed.enable_volume_module);
+        assert!(parsed.show_media_controls);
         assert!(parsed.module_order.contains(&"volume".to_string()));
     }
 

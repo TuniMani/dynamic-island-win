@@ -100,6 +100,7 @@ export interface AppSettings {
   auto_hide_fullscreen: boolean;
   auto_hide_idle_secs: number;
   show_system_metrics_in_idle: boolean;
+  show_media_controls: boolean;
   hud_duration_ms: number;
   enable_visualizer: boolean;
   enable_media_module: boolean;

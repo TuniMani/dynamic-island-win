@@ -38,7 +38,8 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 - **Live Media Controls & Visualizer (Windows SMTC)**:
   - Integrates with Windows System Media Transport Controls (Spotify, Chrome, Edge, Apple Music, Brave, VLC, etc.).
   - Compact album art + GPU-accelerated audio spectrum bars reacting to real-time system audio peaks.
-  - Expanded view with track metadata, seekable timeline, instant source switching, and Play/Pause/Next/Previous controls.
+  - Expanded view with track metadata, seekable timeline, instant source switching, inline per-app volume control, and Play/Pause/Next/Previous controls.
+  - **Compact Media Mode (Toggleable Media Controls)**: Turn off **Show Media Controls** in Settings to hide the scrubber, playback buttons, and inline volume bar for a slim, ultra-compact media header.
 - **Background Progress Tracking**:
   - Tracks Explorer file copy/move dialogs (`OperationStatusWindow`), classic progress dialogs (`msctls_progress32`), and taskbar button progress (`ITaskbarList3` via UIAutomation) with a circular progress ring.
 - **System Resource Monitor & Countdown Timer**:
@@ -61,6 +62,13 @@ Engineered in Rust to run silently in the background with virtually zero resourc
 1. Go to the [**Releases**](https://github.com/TuniMani/dynamic-island-win/releases) page and download **`DynamicIsland.exe`**.
 2. Double-click **`DynamicIsland.exe`** — it starts silently in the background with no console window and registers a **System Tray** icon.
 3. Left-click or right-click the tray icon to open **Settings**, toggle visibility, reset position, or **Quit**.
+
+## 🛡️ Security & VirusTotal Verification
+
+Verified release executable scan report:
+- 🔗 [View VirusTotal Report](https://www.virustotal.com/gui/file/1a89f6226cee2ef70be44f462787d8356ca236e89483bdda49fa0448678cbb92?nocache=1)
+
+![VirusTotal Scan Result](assets/virustotal.png)
 
 ---
 
